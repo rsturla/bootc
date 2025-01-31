@@ -20,6 +20,7 @@ ostree = { features = ["v2025_1"], version = "0.20.0" }
 anyhow = { workspace = true }
 bootc-utils = { path = "../utils" }
 camino = { workspace = true, features = ["serde1"] }
+composefs = { git = "https://github.com/containers/composefs-rs", rev = "55ae2e9ba72f6afda4887d746e6b98f0a1875ac4" }
 chrono = { workspace = true }
 olpc-cjson = "0.1.1"
 clap = { workspace = true, features = ["derive","cargo"] }
