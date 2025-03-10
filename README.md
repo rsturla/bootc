@@ -45,3 +45,5 @@ Matrix channel and a weekly video call meeting for example: <https://docs.fedora
 Are you interested in working on bootc?  Great!  See our [CONTRIBUTING.md](CONTRIBUTING.md) guide.
 There is also a list of [MAINTAINERS.md](MAINTAINERS.md).
 
+---
+The Linux Foundation® (TLF) has registered trademarks and uses trademarks. For a list of TLF trademarks, see [Trademark Usage](https://www.linuxfoundation.org/trademark-usage/).
