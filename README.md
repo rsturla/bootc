@@ -45,5 +45,12 @@ Matrix channel and a weekly video call meeting for example: <https://docs.fedora
 Are you interested in working on bootc?  Great!  See our [CONTRIBUTING.md](CONTRIBUTING.md) guide.
 There is also a list of [MAINTAINERS.md](MAINTAINERS.md).
 
+## Governance
+
+### Code of Conduct
+
+The bootc project is a [Cloud Native Computing Foundation (CNCF) Sandbox project](https://www.cncf.io/sandbox-projects/)
+and adheres to the [CNCF Community Code of Conduct](https://github.com/cncf/foundation/blob/main/code-of-conduct.md).
+
 ---
 The Linux Foundation® (TLF) has registered trademarks and uses trademarks. For a list of TLF trademarks, see [Trademark Usage](https://www.linuxfoundation.org/trademark-usage/).
