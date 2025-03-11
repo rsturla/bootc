@@ -225,12 +225,25 @@ More on prepare-root: <https://ostreedev.github.io/ostree/man/ostree-prepare-roo
 
 This feature enables a writable overlay on top of `/opt` (or really, any
 toplevel or subdirectory baked into the image that is normally read-only).
-Changes persist across reboots but during updates, new files from the container
-image override any locally modified version. All other files persist.
 
-To enable this feature, simply instantiate the `ostree-state-overlay@.service`
+The semantics here are somewhat nuanced:
+
+- Changes persist across reboots by default
+- During updates, new files from the container image override any locally modified version
+
+A disadvantage of this approach is that there is no equivalent to this feature in the
+Docker/podman ecosystem, and while its semantics can often trivially enable many applications that
+install into `/opt`, it can still be prone to "state drift".
+
+To enable this feature, instantiate the `ostree-state-overlay@.service`
 unit template on the target path. For example, for `/opt`:
 
 ```
 RUN systemctl enable ostree-state-overlay@opt.service
 ```
+
+### Alternatives to state overlays
+
+See the section on `/opt` in [Image building and configuration guidance](building/guidance.md).
+Essentially, add a redirect such as a symbolic link from `/opt/someapp/logs` or other
+directories that should be writable+persistent to `/var/someapp/logs` instead.
