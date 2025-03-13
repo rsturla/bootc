@@ -231,9 +231,13 @@ The semantics here are somewhat nuanced:
 - Changes persist across reboots by default
 - During updates, new files from the container image override any locally modified version
 
-A disadvantage of this approach is that there is no equivalent to this feature in the
-Docker/podman ecosystem, and while its semantics can often trivially enable many applications that
-install into `/opt`, it can still be prone to "state drift".
+The advantages are:
+- It makes it very easy to make compatible applications that install into `/opt`.
+- In contrast to transient root (above), a smaller surface of the filesystem is mutable.
+
+The disadvantages are:
+- There is no equivalent to this feature in the Docker/Podman ecosystem.
+- It allows for some temporary state drift until the next update.
 
 To enable this feature, instantiate the `ostree-state-overlay@.service`
 unit template on the target path. For example, for `/opt`:
@@ -242,8 +246,10 @@ unit template on the target path. For example, for `/opt`:
 RUN systemctl enable ostree-state-overlay@opt.service
 ```
 
-### Alternatives to state overlays
+## More generally dealing with `/opt`
 
-See the section on `/opt` in [Image building and configuration guidance](building/guidance.md).
-Essentially, add a redirect such as a symbolic link from `/opt/someapp/logs` or other
-directories that should be writable+persistent to `/var/someapp/logs` instead.
+Both transient root and state overlays above provide ways for packages
+that install in `/opt` to operate. However, for maximum immutability the
+best approach is simply to symlink just the parts of the `/opt` needed
+into `/var`. See the section on `/opt` in [Image building and configuration
+guidance](building/guidance.md) for a more concrete example.
