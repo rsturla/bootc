@@ -55,6 +55,17 @@ jobs:
       # - rhel-9-x86_64
       # - rhel-9-aarch64
 
+  # Build on new commit to main branch
+  - job: copr_build
+    trigger: commit
+    branch: main
+    owner: rhcontainerbot
+    project: bootc
+    enable_net: true
+    notifications:
+      failure_comment:
+        message: "bootc Copr build failed for {commit_sha}. @admin check logs {logs_url} and packit dashboard {packit_dashboard_url}"
+
   - job: tests
     trigger: pull_request
     targets:
