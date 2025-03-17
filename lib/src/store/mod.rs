@@ -7,13 +7,15 @@ use cap_std_ext::cap_std::fs::Dir;
 use cap_std_ext::dirext::CapStdExtDirExt;
 use clap::ValueEnum;
 use fn_error_context::context;
+use std::os::fd::AsRawFd;
 
 use ostree_ext::container::OstreeImageReference;
 use ostree_ext::keyfileext::KeyFileExt;
-use ostree_ext::ostree;
 use ostree_ext::sysroot::SysrootLock;
+use ostree_ext::{gio, ostree};
 
 use crate::spec::ImageStatus;
+use crate::utils::deployment_fd;
 
 mod ostree_container;
 
@@ -85,7 +87,18 @@ impl Storage {
             return Ok(imgstore);
         }
         let sysroot_dir = crate::utils::sysroot_dir(&self.sysroot)?;
-        let imgstore = crate::imgstorage::Storage::create(&sysroot_dir, &self.run)?;
+
+        if self.sysroot.booted_deployment().is_none() {
+            anyhow::bail!("Not a bootc system (this shouldn't be possible)");
+        }
+
+        // load the sepolicy from the booted ostree deployment so the imgstorage can be
+        // properly labeled with /var/lib/container/storage labels
+        let dep = self.sysroot.booted_deployment().unwrap();
+        let dep_fs = deployment_fd(&self.sysroot, &dep)?;
+        let sepolicy = &ostree::SePolicy::new_at(dep_fs.as_raw_fd(), gio::Cancellable::NONE)?;
+
+        let imgstore = crate::imgstorage::Storage::create(&sysroot_dir, &self.run, Some(sepolicy))?;
         Ok(self.imgstore.get_or_init(|| imgstore))
     }
 

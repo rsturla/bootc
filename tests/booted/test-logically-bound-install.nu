@@ -35,7 +35,15 @@ def test_bootc_image_list [] {
     validate_images $images
 }
 
+def test_storage_labels [] {
+    let root_labeled = getfattr -n security.selinux /var/lib/containers/storage | grep container_var_lib_t | complete
+    assert equal $root_labeled.exit_code 0
+    let overlay_labeled = getfattr -n security.selinux /usr/lib/bootc/storage/overlay | grep container_ro_file_t | complete
+    assert equal $overlay_labeled.exit_code 0
+}
+
 test_logically_bound_images_in_storage
 test_bootc_image_list
+test_storage_labels
 
 tap ok

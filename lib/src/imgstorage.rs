@@ -20,6 +20,7 @@ use cap_std_ext::cap_tempfile::TempDir;
 use cap_std_ext::cmdext::CapStdExtCommandExt;
 use cap_std_ext::dirext::CapStdExtDirExt;
 use fn_error_context::context;
+use ostree_ext::ostree::{self};
 use std::os::fd::OwnedFd;
 use tokio::process::Command as AsyncCommand;
 
@@ -34,6 +35,8 @@ const SUBCMD_ARGV_CHUNKING: usize = 100;
 pub(crate) const STORAGE_ALIAS_DIR: &str = "/run/bootc/storage";
 /// We pass this via /proc/self/fd to the child process.
 const STORAGE_RUN_FD: i32 = 3;
+
+const LABELED: &str = ".bootc_labeled";
 
 /// The path to the image storage, relative to the bootc root directory.
 pub(crate) const SUBPATH: &str = "storage";
@@ -161,24 +164,68 @@ impl Storage {
         Ok(())
     }
 
+    #[context("Labeling imgstorage dirs")]
+    fn label_dirs(root: &Dir, sepolicy: Option<&ostree::SePolicy>) -> Result<()> {
+        if root.try_exists(LABELED)? {
+            return Ok(());
+        }
+        let Some(sepolicy) = sepolicy else {
+            return Ok(());
+        };
+
+        // recursively set the labels because they were previously set to usr_t,
+        // and there is no policy defined to set them to the c/storage labels
+        crate::lsm::ensure_dir_labeled_recurse_policy(
+            &root,
+            ".",
+            Some(Utf8Path::new("/var/lib/containers/storage")),
+            0o755.into(),
+            Some(sepolicy),
+        )
+        .context("labeling storage root")?;
+
+        let paths = ["overlay", "overlay-images", "overlay-layers", "volumes"];
+        for p in paths {
+            let full_label_path = format!("/var/lib/containers/storage/{}", p);
+            crate::lsm::ensure_dir_labeled_recurse_policy(
+                &root,
+                p,
+                Some(Utf8Path::new(full_label_path.as_str())),
+                0o755.into(),
+                Some(sepolicy),
+            )
+            .context(format!("labeling storage subpath: {}", p))?;
+        }
+
+        root.create(LABELED)?;
+
+        Ok(())
+    }
+
     #[context("Creating imgstorage")]
-    pub(crate) fn create(sysroot: &Dir, run: &Dir) -> Result<Self> {
+    pub(crate) fn create(
+        sysroot: &Dir,
+        run: &Dir,
+        sepolicy: Option<&ostree::SePolicy>,
+    ) -> Result<Self> {
         Self::init_globals()?;
         let subpath = &Self::subpath();
 
         // SAFETY: We know there's a parent
         let parent = subpath.parent().unwrap();
+        let tmp = format!("{subpath}.tmp");
         if !sysroot
             .try_exists(subpath)
             .with_context(|| format!("Querying {subpath}"))?
         {
-            let tmp = format!("{subpath}.tmp");
             sysroot.remove_all_optional(&tmp).context("Removing tmp")?;
             sysroot
                 .create_dir_all(parent)
                 .with_context(|| format!("Creating {parent}"))?;
             sysroot.create_dir_all(&tmp).context("Creating tmpdir")?;
             let storage_root = sysroot.open_dir(&tmp).context("Open tmp")?;
+            Self::label_dirs(&storage_root, sepolicy)?;
+
             // There's no explicit API to initialize a containers-storage:
             // root, simply passing a path will attempt to auto-create it.
             // We run "podman images" in the new root.
@@ -192,7 +239,12 @@ impl Storage {
                 .rename(&tmp, sysroot, subpath)
                 .context("Renaming tmpdir")?;
             tracing::debug!("Created image store");
+        } else {
+            // the storage already exists, make sure it has selinux labels
+            let storage_root = sysroot.open_dir(subpath).context("opening storage dir")?;
+            Self::label_dirs(&storage_root, sepolicy)?;
         }
+
         Self::open(sysroot, run)
     }
 

@@ -605,7 +605,10 @@ pub(crate) fn print_configuration() -> Result<()> {
 }
 
 #[context("Creating ostree deployment")]
-async fn initialize_ostree_root(state: &State, root_setup: &RootSetup) -> Result<(Storage, bool)> {
+async fn initialize_ostree_root(
+    state: &State,
+    root_setup: &RootSetup,
+) -> Result<(Storage, bool, crate::imgstorage::Storage)> {
     let sepolicy = state.load_policy()?;
     let sepolicy = sepolicy.as_ref();
     // Load a fd for the mounted target physical root
@@ -671,14 +674,9 @@ async fn initialize_ostree_root(state: &State, root_setup: &RootSetup) -> Result
 
     state.tempdir.create_dir("temp-run")?;
     let temp_run = state.tempdir.open_dir("temp-run")?;
-    sysroot_dir
-        .create_dir_all(Utf8Path::new(crate::imgstorage::SUBPATH).parent().unwrap())
-        .context("creating bootc dir")?;
-    let imgstore = crate::imgstorage::Storage::create(&sysroot_dir, &temp_run)?;
-    // And drop it again - we'll reopen it after this
-    drop(imgstore);
 
     // Bootstrap the initial labeling of the /ostree directory as usr_t
+    // and create the imgstorage with the same labels as /var/lib/containers
     if let Some(policy) = sepolicy {
         let ostree_dir = rootfs_dir.open_dir("ostree")?;
         crate::lsm::ensure_dir_labeled(
@@ -690,9 +688,11 @@ async fn initialize_ostree_root(state: &State, root_setup: &RootSetup) -> Result
         )?;
     }
 
+    let imgstore = crate::imgstorage::Storage::create(&sysroot_dir, &temp_run, sepolicy)?;
+
     sysroot.load(cancellable)?;
     let sysroot = SysrootLock::new_from_sysroot(&sysroot).await?;
-    Ok((Storage::new(sysroot, &temp_run)?, has_ostree))
+    Ok((Storage::new(sysroot, &temp_run)?, has_ostree, imgstore))
 }
 
 #[context("Creating ostree deployment")]
@@ -1322,6 +1322,7 @@ async fn install_with_sysroot(
     boot_uuid: &str,
     bound_images: BoundImages,
     has_ostree: bool,
+    imgstore: &crate::imgstorage::Storage,
 ) -> Result<()> {
     // And actually set up the container in that root, returning a deployment and
     // the aleph state (see below).
@@ -1348,10 +1349,6 @@ async fn install_with_sysroot(
     tracing::debug!("Installed bootloader");
 
     tracing::debug!("Perfoming post-deployment operations");
-
-    // Note that we *always* initialize this container storage, even if there are no bound images
-    // today.
-    let imgstore = sysroot.get_ensure_imgstore()?;
 
     match bound_images {
         BoundImages::Skip => {}
@@ -1438,7 +1435,8 @@ async fn install_to_filesystem_impl(state: &State, rootfs: &mut RootSetup) -> Re
 
     // Initialize the ostree sysroot (repo, stateroot, etc.)
     {
-        let (sysroot, has_ostree) = initialize_ostree_root(state, rootfs).await?;
+        let (sysroot, has_ostree, imgstore) = initialize_ostree_root(state, rootfs).await?;
+
         install_with_sysroot(
             state,
             rootfs,
@@ -1446,6 +1444,7 @@ async fn install_to_filesystem_impl(state: &State, rootfs: &mut RootSetup) -> Re
             &boot_uuid,
             bound_images,
             has_ostree,
+            &imgstore,
         )
         .await?;
         // We must drop the sysroot here in order to close any open file

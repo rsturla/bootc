@@ -148,11 +148,11 @@ pub(crate) async fn pull_images(
     sysroot: &Storage,
     bound_images: Vec<crate::boundimage::BoundImage>,
 ) -> Result<()> {
-    // Only do work like initializing the image storage if we have images to pull.
+    // Always initialize the img store to ensure labels are set when upgrading
+    let imgstore = sysroot.get_ensure_imgstore()?;
     if bound_images.is_empty() {
         return Ok(());
     }
-    let imgstore = sysroot.get_ensure_imgstore()?;
     pull_images_impl(imgstore, bound_images).await
 }
 
