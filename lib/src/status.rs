@@ -293,7 +293,7 @@ pub(crate) async fn status(opts: super::cli::StatusOpts) -> Result<()> {
         0 | 1 => {}
         o => anyhow::bail!("Unsupported format version: {o}"),
     };
-    let host = if !ostree_booted()? {
+    let mut host = if !ostree_booted()? {
         Default::default()
     } else {
         let sysroot = super::cli::get_storage().await?;
@@ -301,6 +301,12 @@ pub(crate) async fn status(opts: super::cli::StatusOpts) -> Result<()> {
         let (_deployments, host) = get_status(&sysroot, booted_deployment.as_ref())?;
         host
     };
+
+    // We could support querying the staged or rollback deployments
+    // here too, but it's not a common use case at the moment.
+    if opts.booted {
+        host.filter_to_slot(Slot::Booted);
+    }
 
     // If we're in JSON mode, then convert the ostree data into Rust-native
     // structures that can be serialized.
@@ -326,7 +332,7 @@ pub(crate) async fn status(opts: super::cli::StatusOpts) -> Result<()> {
 }
 
 #[derive(Debug)]
-enum Slot {
+pub enum Slot {
     Staged,
     Booted,
     Rollback,
