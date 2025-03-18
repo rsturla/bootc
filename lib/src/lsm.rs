@@ -259,6 +259,36 @@ pub(crate) fn ensure_labeled(
     Ok(r)
 }
 
+pub(crate) fn ensure_dir_labeled_recurse_policy(
+    root: &Dir,
+    destname: impl AsRef<Utf8Path>,
+    as_path: Option<&Utf8Path>,
+    mode: rustix::fs::Mode,
+    policy: Option<&ostree::SePolicy>,
+) -> Result<()> {
+    ensure_dir_labeled(root, &destname, as_path, mode, policy)?;
+    let mut dest_path = destname.as_ref().to_path_buf();
+
+    for ent in root.read_dir(destname.as_ref())? {
+        let ent = ent?;
+        let metadata = ent.metadata()?;
+        let name = ent.file_name();
+        let name = name
+            .to_str()
+            .ok_or_else(|| anyhow::anyhow!("Invalid non-UTF-8 filename: {name:?}"))?;
+        dest_path.push(name);
+
+        if metadata.is_dir() {
+            ensure_dir_labeled_recurse_policy(root, &dest_path, as_path, mode, policy)?;
+        } else {
+            ensure_dir_labeled(root, &dest_path, as_path, mode, policy)?
+        }
+        dest_path.pop();
+    }
+
+    Ok(())
+}
+
 /// A wrapper for creating a directory, also optionally setting a SELinux label.
 /// The provided `skip` parameter is a device/inode that we will ignore (and not traverse).
 pub(crate) fn ensure_dir_labeled_recurse(
