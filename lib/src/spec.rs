@@ -316,4 +316,49 @@ mod tests {
         assert!(Store::from_str("OstrEeContAiner", true).is_ok());
         assert!(Store::from_str("invalid", true).is_err());
     }
+
+    #[test]
+    fn test_host_filter_to_slot() {
+        fn create_host() -> Host {
+            let mut host = Host::default();
+            host.status.staged = Some(default_boot_entry());
+            host.status.booted = Some(default_boot_entry());
+            host.status.rollback = Some(default_boot_entry());
+            host
+        }
+
+        fn default_boot_entry() -> BootEntry {
+            BootEntry {
+                image: None,
+                cached_update: None,
+                incompatible: false,
+                pinned: false,
+                store: None,
+                ostree: None,
+            }
+        }
+
+        fn assert_host_state(
+            host: &Host,
+            staged: Option<BootEntry>,
+            booted: Option<BootEntry>,
+            rollback: Option<BootEntry>,
+        ) {
+            assert_eq!(host.status.staged, staged);
+            assert_eq!(host.status.booted, booted);
+            assert_eq!(host.status.rollback, rollback);
+        }
+
+        let mut host = create_host();
+        host.filter_to_slot(Slot::Staged);
+        assert_host_state(&host, Some(default_boot_entry()), None, None);
+
+        let mut host = create_host();
+        host.filter_to_slot(Slot::Booted);
+        assert_host_state(&host, None, Some(default_boot_entry()), None);
+
+        let mut host = create_host();
+        host.filter_to_slot(Slot::Rollback);
+        assert_host_state(&host, None, None, Some(default_boot_entry()));
+    }
 }
