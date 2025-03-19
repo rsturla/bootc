@@ -7,7 +7,7 @@ use ostree_ext::oci_spec::image::Digest;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-use crate::k8sapitypes;
+use crate::{k8sapitypes, status::Slot};
 
 const API_VERSION: &str = "org.containers.bootc/v1";
 const KIND: &str = "BootcHost";
@@ -176,6 +176,24 @@ impl Host {
             },
             spec,
             status: Default::default(),
+        }
+    }
+
+    /// Filter out the requested slot
+    pub fn filter_to_slot(&mut self, slot: Slot) {
+        match slot {
+            Slot::Staged => {
+                self.status.booted = None;
+                self.status.rollback = None;
+            }
+            Slot::Booted => {
+                self.status.staged = None;
+                self.status.rollback = None;
+            }
+            Slot::Rollback => {
+                self.status.staged = None;
+                self.status.booted = None;
+            }
         }
     }
 }
