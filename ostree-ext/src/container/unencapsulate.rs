@@ -197,15 +197,10 @@ pub(crate) fn decompressor(
     src: impl Read + Send + 'static,
 ) -> Result<Box<dyn Read + Send + 'static>> {
     let r: Box<dyn std::io::Read + Send + 'static> = match media_type {
-        m @ (oci_image::MediaType::ImageLayerGzip | oci_image::MediaType::ImageLayerZstd) => {
-            if matches!(m, oci_image::MediaType::ImageLayerZstd) {
-                Box::new(zstd::stream::read::Decoder::new(src)?)
-            } else {
-                Box::new(flate2::bufread::GzDecoder::new(std::io::BufReader::new(
-                    src,
-                )))
-            }
-        }
+        oci_image::MediaType::ImageLayerZstd => Box::new(zstd::stream::read::Decoder::new(src)?),
+        oci_image::MediaType::ImageLayerGzip => Box::new(flate2::bufread::GzDecoder::new(
+            std::io::BufReader::new(src),
+        )),
         oci_image::MediaType::ImageLayer => Box::new(src),
         oci_image::MediaType::Other(t) if t.as_str() == DOCKER_TYPE_LAYER_TAR => Box::new(src),
         o => anyhow::bail!("Unhandled layer type: {}", o),
