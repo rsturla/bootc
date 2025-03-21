@@ -6,16 +6,25 @@
 // Unfortunately needed here to work with linkme
 #![allow(unsafe_code)]
 
+use std::fmt::Write as _;
 use std::future::Future;
 use std::pin::Pin;
 use std::process::Command;
 
+use bootc_utils::iterator_split_nonempty_rest_count;
+use camino::Utf8PathBuf;
 use cap_std::fs::{Dir, MetadataExt as _};
 use cap_std_ext::cap_std;
 use cap_std_ext::dirext::CapStdExtDirExt;
+use fn_error_context::context;
 use linkme::distributed_slice;
+use ostree_ext::ostree_prepareroot::Tristate;
+use ostree_ext::{composefs, ostree};
+use serde::{Deserialize, Serialize};
 
 use crate::store::Storage;
+
+use std::os::fd::AsFd;
 
 /// A lint check has failed.
 #[derive(thiserror::Error, Debug)]
@@ -110,6 +119,153 @@ fn check_resolvconf(storage: &Storage) -> FsckResult {
         return fsck_err("Found usr/etc/resolv.conf as zero-sized file");
     }
     fsck_ok()
+}
+
+#[derive(Serialize, Deserialize, Debug, PartialEq, Eq)]
+#[serde(rename_all = "kebab-case")]
+pub(crate) enum VerityState {
+    Enabled,
+    Disabled,
+    Inconsistent((u64, u64)),
+}
+
+#[derive(Debug, Default)]
+struct ObjectsVerityState {
+    /// Count of objects with fsverity
+    enabled: u64,
+    /// Count of objects without fsverity
+    disabled: u64,
+    /// Objects which should have fsverity but do not
+    missing: Vec<String>,
+}
+
+/// Check the fsverity state of all regular files in this object directory.
+#[context("Computing verity state")]
+fn verity_state_of_objects(
+    d: &Dir,
+    prefix: &str,
+    expected: bool,
+) -> anyhow::Result<ObjectsVerityState> {
+    let mut enabled = 0;
+    let mut disabled = 0;
+    let mut missing = Vec::new();
+    for ent in d.entries()? {
+        let ent = ent?;
+        if !ent.file_type()?.is_file() {
+            continue;
+        }
+        let name = ent.file_name();
+        let name = name
+            .into_string()
+            .map(Utf8PathBuf::from)
+            .map_err(|_| anyhow::anyhow!("Invalid UTF-8"))?;
+        let Some("file") = name.extension() else {
+            continue;
+        };
+        let f = d.open(&name)?;
+        let r: Option<composefs::fsverity::Sha256HashValue> =
+            composefs::fsverity::ioctl::fs_ioc_measure_verity(f.as_fd())?;
+        drop(f);
+        if r.is_some() {
+            enabled += 1;
+        } else {
+            disabled += 1;
+            if expected {
+                missing.push(format!("{prefix}{name}"));
+            }
+        }
+    }
+    let r = ObjectsVerityState {
+        enabled,
+        disabled,
+        missing,
+    };
+    Ok(r)
+}
+
+async fn verity_state_of_all_objects(
+    repo: &ostree::Repo,
+    expected: bool,
+) -> anyhow::Result<ObjectsVerityState> {
+    // Limit concurrency here
+    const MAX_CONCURRENT: usize = 3;
+
+    let repodir = Dir::reopen_dir(&repo.dfd_borrow())?;
+
+    // It's convenient here to reuse tokio's spawn_blocking as a threadpool basically.
+    let mut joinset = tokio::task::JoinSet::new();
+    let mut results = Vec::new();
+
+    for ent in repodir.read_dir("objects")? {
+        // Block here if the queue is full
+        while joinset.len() >= MAX_CONCURRENT {
+            results.push(joinset.join_next().await.unwrap()??);
+        }
+        let ent = ent?;
+        if !ent.file_type()?.is_dir() {
+            continue;
+        }
+        let name = ent.file_name();
+        let name = name
+            .into_string()
+            .map(Utf8PathBuf::from)
+            .map_err(|_| anyhow::anyhow!("Invalid UTF-8"))?;
+
+        let objdir = ent.open_dir()?;
+        let expected = expected.clone();
+        joinset.spawn_blocking(move || verity_state_of_objects(&objdir, name.as_str(), expected));
+    }
+
+    // Drain the remaining tasks.
+    while let Some(output) = joinset.join_next().await {
+        results.push(output??);
+    }
+    // Fold the results.
+    let r = results
+        .into_iter()
+        .fold(ObjectsVerityState::default(), |mut acc, v| {
+            acc.enabled += v.enabled;
+            acc.disabled += v.disabled;
+            acc.missing.extend(v.missing);
+            acc
+        });
+    Ok(r)
+}
+
+#[distributed_slice(FSCK_CHECKS)]
+static CHECK_FSVERITY: FsckCheck =
+    FsckCheck::new("fsverity", 10, FsckFnImpl::Async(check_fsverity));
+fn check_fsverity(storage: &Storage) -> Pin<Box<dyn Future<Output = FsckResult> + '_>> {
+    Box::pin(check_fsverity_inner(storage))
+}
+
+async fn check_fsverity_inner(storage: &Storage) -> FsckResult {
+    let repo = &storage.repo();
+    let verity_state = ostree_ext::fsverity::is_verity_enabled(repo)?;
+    tracing::debug!(
+        "verity: expected={:?} found={:?}",
+        verity_state.desired,
+        verity_state.enabled
+    );
+
+    let verity_found_state =
+        verity_state_of_all_objects(&storage.repo(), verity_state.desired == Tristate::Enabled)
+            .await?;
+    let Some((missing, rest)) =
+        iterator_split_nonempty_rest_count(verity_found_state.missing.iter(), 5)
+    else {
+        return fsck_ok();
+    };
+    let mut err = String::from("fsverity enabled, but objects without fsverity:\n");
+    for obj in missing {
+        // SAFETY: Writing into a String
+        writeln!(err, "  {obj}").unwrap();
+    }
+    if rest > 0 {
+        // SAFETY: Writing into a String
+        writeln!(err, "  ...and {rest} more").unwrap();
+    }
+    fsck_err(err)
 }
 
 pub(crate) async fn fsck(storage: &Storage, mut output: impl std::io::Write) -> anyhow::Result<()> {

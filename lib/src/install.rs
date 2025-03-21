@@ -40,6 +40,7 @@ use fn_error_context::context;
 use ostree::gio;
 use ostree_ext::oci_spec;
 use ostree_ext::ostree;
+use ostree_ext::ostree_prepareroot::{ComposefsState, Tristate};
 use ostree_ext::prelude::Cast;
 use ostree_ext::sysroot::SysrootLock;
 use ostree_ext::{container as ostree_container, ostree_prepareroot};
@@ -76,6 +77,15 @@ const SELINUXFS: &str = "/sys/fs/selinux";
 /// The mount path for uefi
 const EFIVARFS: &str = "/sys/firmware/efi/efivars";
 pub(crate) const ARCH_USES_EFI: bool = cfg!(any(target_arch = "x86_64", target_arch = "aarch64"));
+
+const DEFAULT_REPO_CONFIG: &[(&str, &str)] = &[
+    // Default to avoiding grub2-mkconfig etc.
+    ("sysroot.bootloader", "none"),
+    // Always flip this one on because we need to support alongside installs
+    // to systems without a separate boot partition.
+    ("sysroot.bootprefix", "true"),
+    ("sysroot.readonly", "true"),
+];
 
 /// Kernel argument used to specify we want the rootfs mounted read-write by default
 const RW_KARG: &str = "rw";
@@ -641,14 +651,7 @@ async fn initialize_ostree_root(
         crate::lsm::ensure_dir_labeled(rootfs_dir, "boot", None, 0o755.into(), sepolicy)?;
     }
 
-    for (k, v) in [
-        // Default to avoiding grub2-mkconfig etc.
-        ("sysroot.bootloader", "none"),
-        // Always flip this one on because we need to support alongside installs
-        // to systems without a separate boot partition.
-        ("sysroot.bootprefix", "true"),
-        ("sysroot.readonly", "true"),
-    ] {
+    for (k, v) in DEFAULT_REPO_CONFIG.iter() {
         Command::new("ostree")
             .args(["config", "--repo", "ostree/repo", "set", k, v])
             .cwd_dir(rootfs_dir.try_clone()?)
@@ -660,6 +663,19 @@ async fn initialize_ostree_root(
         ostree::Sysroot::new(Some(&gio::File::for_path(path)))
     };
     sysroot.load(cancellable)?;
+    let repo = &sysroot.repo();
+
+    let repo_verity_state = ostree_ext::fsverity::is_verity_enabled(&repo)?;
+    let prepare_root_composefs = state
+        .prepareroot_config
+        .get("composefs.enabled")
+        .map(|v| ComposefsState::from_str(&v))
+        .transpose()?
+        .unwrap_or(ComposefsState::default());
+    if prepare_root_composefs.requires_fsverity() || repo_verity_state.desired == Tristate::Enabled
+    {
+        ostree_ext::fsverity::ensure_verity(repo).await?;
+    }
 
     let stateroot_exists = rootfs_dir.try_exists(format!("ostree/deploy/{stateroot}"))?;
     ensure!(
