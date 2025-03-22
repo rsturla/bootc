@@ -230,8 +230,11 @@ pub(crate) fn has_security_selinux(root: &Dir, path: &Utf8Path) -> Result<SELinu
     }
 }
 
+/// Directly set the `security.selinux` extended atttribute on the target
+/// path. Symbolic links are not followed for the target.
+///
+/// Note that this API will work even if SELinux is disabled.
 pub(crate) fn set_security_selinux_path(root: &Dir, path: &Utf8Path, label: &[u8]) -> Result<()> {
-    // TODO: avoid hardcoding a max size here
     let fdpath = format!("/proc/self/fd/{}/", root.as_raw_fd());
     let fdpath = &Path::new(&fdpath).join(path);
     rustix::fs::lsetxattr(
@@ -243,6 +246,9 @@ pub(crate) fn set_security_selinux_path(root: &Dir, path: &Utf8Path, label: &[u8
     Ok(())
 }
 
+/// Given a policy, ensure the target file path has a security.selinux label.
+/// If the path already is labeled, this function is a no-op, even if
+/// the policy would default to a different label.
 pub(crate) fn ensure_labeled(
     root: &Dir,
     path: &Utf8Path,
