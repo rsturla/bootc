@@ -253,3 +253,35 @@ that install in `/opt` to operate. However, for maximum immutability the
 best approach is simply to symlink just the parts of the `/opt` needed
 into `/var`. See the section on `/opt` in [Image building and configuration
 guidance](building/guidance.md) for a more concrete example.
+
+## Increased filesystem integrity with fsverity
+
+The bootc project uses [composefs](https://github.com/composefs/composefs)
+by default for the root filesystem (using ostree's support for composefs).
+However, the default configuration as recommended for base images
+uses composefs in a mode that does not require signatures or fsverity.
+
+bootc supports with ostree's model of hard requiring fsverity
+for underlying objects. Enabling this also causes bootc
+to error out at install time if the target filesystem does
+not enable fsverity.
+
+To enable this, inside your container build update
+`/usr/lib/ostree/prepare-root.conf` with:
+
+```
+[composefs]
+enabled = verity
+```
+
+At the current time, there is no default recommended
+mechanism to check the integrity of the upper composefs.
+For more information about this, see
+[this tracking issue](https://github.com/bootc-dev/bootc/issues/1190).
+
+### Enabling fsverity across upgrades
+
+At the current time the integration is only for
+installation; there is not yet support for automatically ensuring that
+fsverity is enabled when upgrading from a state with
+`composefs.enabled = yes` to `composefs.enabled = verity`.
