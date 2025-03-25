@@ -184,8 +184,7 @@ does not do this today, in the future it may automatically migrate
 ### Using `bootc install to-disk --via-loopback`
 
 Because every `bootc` system comes with an opinionated default installation
-process, you can create a raw disk image (that can e.g. be booted via virtualization)
-via e.g.:
+process, you can create a raw disk image that you can boot via virtualization. Run these commands as root:
 
 ```bash
 truncate -s 10G myimage.raw
