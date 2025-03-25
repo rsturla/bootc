@@ -366,22 +366,32 @@ async fn filter_tar_async(
         let dest = tokio_util::io::SyncIoBridge::new(tx_buf);
 
         let r = filter_tar(&mut src, dest, &config, &repo_tmpdir);
+
+        // We need to make sure to flush out the decompressor here,
+        // otherwise it's possible that we finish processing the tar
+        // stream but leave data in the pipe.  For example,
+        // zstd:chunked layers will have metadata/skippable frames at
+        // the end of the stream.  That data isn't relevant to the tar
+        // stream, but if we don't read it here then on the skopeo
+        // proxy we'll block trying to write the end of the stream.
+        // That in turn will block our client end trying to call
+        // FinishPipe, and we end up deadlocking ourselves through
+        // skopeo.
+        //
+        // https://github.com/bootc-dev/bootc/issues/1204
+        let mut sink = std::io::sink();
+        let n = std::io::copy(&mut src, &mut sink)?;
+        if n != 0 {
+            tracing::debug!("Read extra {n} bytes at end of decompressor stream");
+        }
+
         // Pass ownership of the input stream back to the caller - see below.
-        Ok((r, src))
+        Ok(r)
     });
     let copier = tokio::io::copy(&mut rx_buf, &mut dest);
     let (r, v) = tokio::join!(tar_transformer, copier);
     let _v: u64 = v?;
-    let (r, src) = r?;
-    // Note that the worker thread took temporary ownership of the input stream; we only close
-    // it at this point, after we're sure we've done all processing of the input.  The reason
-    // for this is that both the skopeo process *or* us could encounter an error (see join_fetch).
-    // By ensuring we hold the stream open as long as possible, it ensures that we're going to
-    // see a remote error first, instead of the remote skopeo process seeing us close the pipe
-    // because we found an error.
-    drop(src);
-    // And pass back the result
-    r
+    r?
 }
 
 /// Write the contents of a tarball as an ostree commit.
