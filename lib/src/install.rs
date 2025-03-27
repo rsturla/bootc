@@ -1590,7 +1590,6 @@ fn require_empty_rootdir(rootfs_fd: &Dir) -> Result<()> {
 /// Remove all entries in a directory, but do not traverse across distinct devices.
 /// If mount_err is true, then an error is returned if a mount point is found;
 /// otherwise it is silently ignored.
-#[context("Removing entries (noxdev)")]
 fn remove_all_in_dir_no_xdev(d: &Dir, mount_err: bool) -> Result<()> {
     for entry in d.entries()? {
         let entry = entry?;
@@ -1623,7 +1622,7 @@ fn clean_boot_directories(rootfs: &Dir, is_ostree: bool) -> Result<()> {
             .context("removing bootupd-state.json")?;
     } else {
         // This should not remove /boot/efi note.
-        remove_all_in_dir_no_xdev(&bootdir, false)?;
+        remove_all_in_dir_no_xdev(&bootdir, false).context("Emptying /boot")?;
         // TODO: Discover the ESP the same way bootupd does it; we should also
         // support not wiping the ESP.
         if ARCH_USES_EFI {
@@ -1631,7 +1630,8 @@ fn clean_boot_directories(rootfs: &Dir, is_ostree: bool) -> Result<()> {
                 .open_dir_optional(crate::bootloader::EFI_DIR)
                 .context("Opening /boot/efi")?
             {
-                remove_all_in_dir_no_xdev(&efidir, false)?;
+                remove_all_in_dir_no_xdev(&efidir, false)
+                    .context("Emptying EFI system partition")?;
             }
         }
     }
