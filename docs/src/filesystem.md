@@ -115,12 +115,25 @@ undefined behavior. There is a check for this in `bootc container lint`.
 
 Content in `/var` persists by default; it is however supported to make it or subdirectories
 mount points (whether network or `tmpfs`).  There is exactly one `/var`.  If it is
-not a distinct partition, then "physically" currently it is a bind mount into
+not a distinct partition, then it is automatically made a bind from
 `/ostree/deploy/$stateroot/var` and shared across "deployments" (bootloader entries).
 
-As of OSTree v2024.3, by default [content in /var acts like a Docker VOLUME /var](https://github.com/ostreedev/ostree/pull/3166/commits/f81b9fa1666c62a024d5ca0bbe876321f72529c7).
+You may include content in `/var` in your image - and reference base images may
+have a few basic directories such as `/var/tmp` (in order to ease use in container
+builds).
 
-This means that the content from the container image is copied at initial installation time, and *not updated thereafter*.
+However, it is very important to understand that content included in `/var`
+in the container image acts like a Docker `VOLUME /var`. This means its
+contents are unpacked *only from the initial image* - subsequent changes to `/var`
+in a container image are not automatically applied.
+
+A common case is for applications to want some directory structure (e.g. `/var/lib/postgresql`) to be pre-created.
+It's recommended to use [systemd tmpfiles.d](https://www.freedesktop.org/software/systemd/man/latest/tmpfiles.d.html)
+for this.  An even better approach where applicable is [StateDirectory=](https://www.freedesktop.org/software/systemd/man/latest/systemd.exec.html#RuntimeDirectory=)
+in units.
+
+As of bootc 1.1.6, the `bootc container lint` command will check for missing `tmpfiles.d`
+entries and warn.
 
 Note this is very different from the handling of `/etc`.   The rationale for this is
 that `/etc` is relatively small configuration files, and the expected configuration
@@ -138,11 +151,6 @@ and ready, but only take effect on reboot).
 
 In general, this is the same rationale for Docker `VOLUME`: decouple the application
 code from its data.
-
-A common case is for applications to want some directory structure (e.g. `/var/lib/postgresql`) to be pre-created.
-It's recommended to use [systemd tmpfiles.d](https://www.freedesktop.org/software/systemd/man/latest/tmpfiles.d.html)
-for this.  An even better approach where applicable is [StateDirectory=](https://www.freedesktop.org/software/systemd/man/latest/systemd.exec.html#RuntimeDirectory=)
-in units.
 
 ## Other directories
 
