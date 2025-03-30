@@ -155,8 +155,7 @@ fn get_keys_from_files(user: &uzers::User, keyfiles: &Vec<&str>) -> Result<Vec<P
         }
 
         // Safety: The UID should be valid because we got it from uzers
-        #[allow(unsafe_code)]
-        let user_uid = unsafe { Uid::from_raw(user.uid()) };
+        let user_uid = Uid::from_raw(user.uid());
 
         // Change the effective uid for this scope, to avoid accidentally reading files we
         // shouldn't through symlinks

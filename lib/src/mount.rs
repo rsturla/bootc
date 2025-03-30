@@ -2,6 +2,7 @@
 
 use std::{
     fs,
+    mem::MaybeUninit,
     os::fd::{AsFd, OwnedFd},
     process::Command,
 };
@@ -199,7 +200,7 @@ pub(crate) fn open_tree_from_pidns(
             // And send that file descriptor via fd passing over the socketpair.
             let fd = fd.as_fd();
             let fds = [fd];
-            let mut buffer = [0u8; rustix::cmsg_space!(ScmRights(1))];
+            let mut buffer = [MaybeUninit::uninit(); rustix::cmsg_space!(ScmRights(1))];
             let mut control = SendAncillaryBuffer::new(&mut buffer);
             let pushed = control.push(SendAncillaryMessage::ScmRights(&fds));
             assert!(pushed);
@@ -218,7 +219,7 @@ pub(crate) fn open_tree_from_pidns(
             let pid = rustix::process::Pid::from_raw(n).unwrap();
             drop(sock_child);
             // Receive the mount file descriptor from the child
-            let mut cmsg_space = vec![0; rustix::cmsg_space!(ScmRights(1))];
+            let mut cmsg_space = vec![MaybeUninit::uninit(); rustix::cmsg_space!(ScmRights(1))];
             let mut cmsg_buffer = rustix::net::RecvAncillaryBuffer::new(&mut cmsg_space);
             let mut buf = [0u8; DUMMY_DATA.len()];
             let iov = std::io::IoSliceMut::new(buf.as_mut());
@@ -244,8 +245,9 @@ pub(crate) fn open_tree_from_pidns(
                 .next()
                 .ok_or_else(|| anyhow::anyhow!("Did not receive a file descriptor"))?;
             // SAFETY: Since we're not setting WNOHANG, this will always return Some().
-            let st =
-                rustix::process::waitpid(Some(pid), WaitOptions::empty())?.expect("Wait status");
+            let st = rustix::process::waitpid(Some(pid), WaitOptions::empty())?
+                .expect("Wait status")
+                .1;
             if let Some(0) = st.exit_status() {
                 Ok(r)
             } else {
