@@ -1,35 +1,38 @@
+use std::ffi::OsStr;
+use std::ops::ControlFlow;
 use std::os::fd::AsRawFd;
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 
 use anyhow::{Context, Result};
 use cap_std_ext::cap_std::fs::Dir;
+use cap_std_ext::dirext::{CapStdExtDirExt, WalkConfiguration};
+use rustix::path::DecInt;
 
-fn verify_selinux_label_exists(root: &Dir, path: &Path, warn: bool) -> Result<()> {
+fn verify_selinux_label_exists(d: &Dir, filename: &OsStr) -> Result<bool> {
     let mut buf = [0u8; 1024];
-    let fdpath = format!("/proc/self/fd/{}/", root.as_raw_fd());
-    let fdpath = &Path::new(&fdpath).join(path);
+    let mut fdpath = PathBuf::from("/proc/self/fd");
+    fdpath.push(DecInt::new(d.as_raw_fd()));
+    fdpath.push(filename);
     match rustix::fs::lgetxattr(fdpath, "security.selinux", &mut buf) {
         // Ignore EOPNOTSUPPORTED
-        Ok(_) | Err(rustix::io::Errno::OPNOTSUPP) => Ok(()),
-        Err(rustix::io::Errno::NODATA) if warn => {
-            eprintln!("No SELinux label found for: {path:?}");
-            Ok(())
-        }
-        Err(e) => Err(e).with_context(|| format!("Failed to look up context for {path:?}")),
+        Ok(_) | Err(rustix::io::Errno::OPNOTSUPP) => Ok(true),
+        Err(rustix::io::Errno::NODATA) => Ok(false),
+        Err(e) => Err(e.into()),
     }
 }
 
-pub(crate) fn verify_selinux_recurse(root: &Dir, path: &mut PathBuf, warn: bool) -> Result<()> {
-    for ent in root.read_dir(&path)? {
-        let ent = ent?;
-        let name = ent.file_name();
-        path.push(name);
-        verify_selinux_label_exists(root, &path, warn)?;
-        let file_type = ent.file_type()?;
-        if file_type.is_dir() {
-            verify_selinux_recurse(root, path, warn)?;
+pub(crate) fn verify_selinux_recurse(root: &Dir, warn: bool) -> Result<()> {
+    root.walk(&WalkConfiguration::default().noxdev(), |e| {
+        let exists = verify_selinux_label_exists(e.dir, e.filename)
+            .with_context(|| format!("Failed to look up context for {:?}", e.path))?;
+        if !exists {
+            if warn {
+                eprintln!("No SELinux label found for: {:?}", e.path);
+            } else {
+                anyhow::bail!("No SELinux label found for: {:?}", e.path);
+            }
         }
-        path.pop();
-    }
+        anyhow::Ok(ControlFlow::Continue(()))
+    })?;
     Ok(())
 }

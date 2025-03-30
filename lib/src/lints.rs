@@ -9,6 +9,7 @@ use std::collections::BTreeSet;
 use std::env::consts::ARCH;
 use std::fmt::Write as WriteFmt;
 use std::os::unix::ffi::OsStrExt;
+use std::path::Path;
 
 use anyhow::Result;
 use bootc_utils::PathQuotedDisplay;
@@ -16,7 +17,7 @@ use camino::{Utf8Path, Utf8PathBuf};
 use cap_std::fs::Dir;
 use cap_std_ext::cap_std;
 use cap_std_ext::cap_std::fs::MetadataExt;
-use cap_std_ext::dirext::CapStdExtDirExt as _;
+use cap_std_ext::dirext::{CapStdExtDirExt as _, WalkConfiguration};
 use fn_error_context::context;
 use indoc::indoc;
 use linkme::distributed_slice;
@@ -338,30 +339,44 @@ UTF-8 filenames. Non-UTF8 filenames will cause a fatal error.
     check_utf8,
 );
 fn check_utf8(dir: &Dir) -> LintResult {
-    for entry in dir.entries()? {
-        let entry = entry?;
-        let name = entry.file_name();
-
-        let Some(strname) = &name.to_str() else {
-            // will escape nicely like "abc\xFFdéf"
-            return lint_err(format!("/: Found non-utf8 filename {name:?}"));
-        };
-
-        let ifmt = entry.file_type()?;
-        if ifmt.is_symlink() {
-            let target = dir.read_link_contents(&name)?;
-            if !target.to_str().is_some() {
-                return lint_err(format!("/{strname}: Found non-utf8 symlink target"));
+    let mut err = None;
+    dir.walk(
+        &WalkConfiguration::default()
+            .noxdev()
+            .path_base(Path::new("/")),
+        |e| -> std::io::Result<_> {
+            // Right now we stop iteration on the first non-UTF8 filename found.
+            // However in the future it'd make sense to handle multiple.
+            if err.is_some() {
+                return Ok(std::ops::ControlFlow::Break(()));
             }
-        } else if ifmt.is_dir() {
-            let Some(subdir) = dir.open_dir_noxdev(entry.file_name())? else {
-                continue;
+            let path = e.path;
+            let filename = e.filename;
+            let dirname = path.parent().unwrap_or(Path::new("/"));
+            if filename.to_str().is_none() {
+                // This escapes like "abc\xFFdéf"
+                err = Some(format!(
+                    "{}: Found non-utf8 filename {filename:?}",
+                    PathQuotedDisplay::new(&dirname)
+                ));
+                return Ok(std::ops::ControlFlow::Break(()));
             };
-            if let Err(err) = check_utf8(&subdir)? {
-                // Try to do the path pasting only in the event of an error
-                return lint_err(format!("/{strname}{err}"));
+
+            if e.file_type.is_symlink() {
+                let target = e.dir.read_link_contents(filename)?;
+                if !target.to_str().is_some() {
+                    err = Some(format!(
+                        "{}: Found non-utf8 symlink target",
+                        PathQuotedDisplay::new(&path)
+                    ));
+                    return Ok(std::ops::ControlFlow::Break(()));
+                }
             }
-        }
+            Ok(std::ops::ControlFlow::Continue(()))
+        },
+    )?;
+    if let Some(err) = err {
+        return lint_err(err);
     }
     lint_ok()
 }
@@ -875,7 +890,7 @@ mod tests {
         };
         assert_eq!(
             err.to_string(),
-            r#"/subdir/2/: Found non-utf8 filename "bad\xFFdir""#
+            r#"/subdir/2: Found non-utf8 filename "bad\xFFdir""#
         );
         root.remove_dir(baddir).unwrap(); // Get rid of the problem
         check_utf8(root).unwrap().unwrap(); // Check it

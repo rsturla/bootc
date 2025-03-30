@@ -1,7 +1,5 @@
 //! Integration tests.
 
-use std::path::PathBuf;
-
 use camino::Utf8PathBuf;
 use cap_std_ext::cap_std::{self, fs::Dir};
 use clap::Parser;
@@ -53,8 +51,7 @@ fn main() {
         Opt::RunVM(opts) => runvm::run(opts),
         Opt::VerifySELinux { rootfs, warn } => {
             let root = &Dir::open_ambient_dir(&rootfs, cap_std::ambient_authority()).unwrap();
-            let mut path = PathBuf::from(".");
-            selinux::verify_selinux_recurse(root, &mut path, warn)
+            selinux::verify_selinux_recurse(root, warn)
         }
     };
     if let Err(e) = r {
