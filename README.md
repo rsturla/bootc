@@ -47,6 +47,11 @@ There is also a list of [MAINTAINERS.md](MAINTAINERS.md).
 
 ## Governance
 
+## Badges
+
+[![OpenSSF Best Practices](https://www.bestpractices.dev/projects/10113/badge)](https://www.bestpractices.dev/projects/10113)
+
+
 ### Code of Conduct
 
 The bootc project is a [Cloud Native Computing Foundation (CNCF) Sandbox project](https://www.cncf.io/sandbox-projects/)
