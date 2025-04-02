@@ -14,7 +14,7 @@ use fn_error_context::context;
 use ostree::{gio, glib};
 use ostree_container::OstreeImageReference;
 use ostree_ext::container as ostree_container;
-use ostree_ext::container::store::{ImportProgress, PrepareResult};
+use ostree_ext::container::store::{ImageImporter, ImportProgress, PrepareResult, PreparedImport};
 use ostree_ext::oci_spec::image::{Descriptor, Digest};
 use ostree_ext::ostree::Deployment;
 use ostree_ext::ostree::{self, Sysroot};
@@ -301,15 +301,45 @@ async fn handle_layer_progress_print(
     prog
 }
 
-/// Wrapper for pulling a container image, wiring up status output.
-#[context("Pulling")]
-pub(crate) async fn pull(
+/// Gather all bound images in all deployments, then prune the image store,
+/// using the gathered images as the roots (that will not be GC'd).
+pub(crate) async fn prune_container_store(sysroot: &Storage) -> Result<()> {
+    let deployments = sysroot.deployments();
+    let mut all_bound_images = Vec::new();
+    for deployment in deployments {
+        let bound = crate::boundimage::query_bound_images_for_deployment(sysroot, &deployment)?;
+        all_bound_images.extend(bound.into_iter());
+    }
+    // Convert to a hashset of just the image names
+    let image_names = HashSet::from_iter(all_bound_images.iter().map(|img| img.image.as_str()));
+    let pruned = sysroot
+        .get_ensure_imgstore()?
+        .prune_except_roots(&image_names)
+        .await?;
+    tracing::debug!("Pruned images: {}", pruned.len());
+    Ok(())
+}
+
+pub(crate) struct PreparedImportMeta {
+    pub imp: ImageImporter,
+    pub prep: Box<PreparedImport>,
+    pub digest: Digest,
+    pub n_layers_to_fetch: usize,
+    pub layers_total: usize,
+    pub bytes_to_fetch: u64,
+    pub bytes_total: u64,
+}
+
+pub(crate) enum PreparedPullResult {
+    Ready(PreparedImportMeta),
+    AlreadyPresent(Box<ImageState>),
+}
+
+pub(crate) async fn prepare_for_pull(
     repo: &ostree::Repo,
     imgref: &ImageReference,
     target_imgref: Option<&OstreeImageReference>,
-    quiet: bool,
-    prog: ProgressWriter,
-) -> Result<Box<ImageState>> {
+) -> Result<PreparedPullResult> {
     let ostree_imgref = &OstreeImageReference::from(imgref.clone());
     let mut imp = new_importer(repo, ostree_imgref).await?;
     if let Some(target) = target_imgref {
@@ -318,7 +348,7 @@ pub(crate) async fn pull(
     let prep = match imp.prepare().await? {
         PrepareResult::AlreadyPresent(c) => {
             println!("No changes in {imgref:#} => {}", c.manifest_digest);
-            return Ok(Box::new((*c).into()));
+            return Ok(PreparedPullResult::AlreadyPresent(Box::new((*c).into())));
         }
         PrepareResult::Ready(p) => p,
     };
@@ -328,30 +358,49 @@ pub(crate) async fn pull(
     }
     ostree_ext::cli::print_layer_status(&prep);
     let layers_to_fetch = prep.layers_to_fetch().collect::<Result<Vec<_>>>()?;
-    let n_layers_to_fetch = layers_to_fetch.len();
-    let layers_total = prep.all_layers().count();
-    let bytes_to_fetch: u64 = layers_to_fetch.iter().map(|(l, _)| l.layer.size()).sum();
-    let bytes_total: u64 = prep.all_layers().map(|l| l.layer.size()).sum();
 
-    let digest = prep.manifest_digest.clone();
-    let digest_imp = prep.manifest_digest.clone();
-    let layer_progress = imp.request_progress();
-    let layer_byte_progress = imp.request_layer_progress();
+    let prepared_image = PreparedImportMeta {
+        imp,
+        n_layers_to_fetch: layers_to_fetch.len(),
+        layers_total: prep.all_layers().count(),
+        bytes_to_fetch: layers_to_fetch.iter().map(|(l, _)| l.layer.size()).sum(),
+        bytes_total: prep.all_layers().map(|l| l.layer.size()).sum(),
+        digest: prep.manifest_digest.clone(),
+        prep,
+    };
+
+    Ok(PreparedPullResult::Ready(prepared_image))
+}
+
+#[context("Pulling")]
+pub(crate) async fn pull_from_prepared(
+    repo: &ostree::Repo,
+    imgref: &ImageReference,
+    target_imgref: Option<&OstreeImageReference>,
+    quiet: bool,
+    prog: ProgressWriter,
+    mut prepared_image: PreparedImportMeta,
+) -> Result<Box<ImageState>> {
+    let layer_progress = prepared_image.imp.request_progress();
+    let layer_byte_progress = prepared_image.imp.request_layer_progress();
+    let digest = prepared_image.digest.clone();
+    let digest_imp = prepared_image.digest.clone();
+
     let printer = tokio::task::spawn(async move {
         handle_layer_progress_print(
             layer_progress,
             layer_byte_progress,
             digest.as_ref().into(),
-            n_layers_to_fetch,
-            layers_total,
-            bytes_to_fetch,
-            bytes_total,
+            prepared_image.n_layers_to_fetch,
+            prepared_image.layers_total,
+            prepared_image.bytes_to_fetch,
+            prepared_image.bytes_total,
             prog,
             quiet,
         )
         .await
     });
-    let import = imp.import(prep).await;
+    let import = prepared_image.imp.import(prepared_image.prep).await;
     let prog = printer.await?;
     // Both the progress and the import are done, so import is done as well
     prog.send(Event::ProgressSteps {
@@ -371,6 +420,7 @@ pub(crate) async fn pull(
     })
     .await;
     let import = import?;
+    let ostree_imgref = &OstreeImageReference::from(imgref.clone());
     let wrote_imgref = target_imgref.as_ref().unwrap_or(&ostree_imgref);
 
     if let Some(msg) =
@@ -382,23 +432,26 @@ pub(crate) async fn pull(
     Ok(Box::new((*import).into()))
 }
 
-/// Gather all bound images in all deployments, then prune the image store,
-/// using the gathered images as the roots (that will not be GC'd).
-pub(crate) async fn prune_container_store(sysroot: &Storage) -> Result<()> {
-    let deployments = sysroot.deployments();
-    let mut all_bound_images = Vec::new();
-    for deployment in deployments {
-        let bound = crate::boundimage::query_bound_images_for_deployment(sysroot, &deployment)?;
-        all_bound_images.extend(bound.into_iter());
+/// Wrapper for pulling a container image, wiring up status output.
+pub(crate) async fn pull(
+    repo: &ostree::Repo,
+    imgref: &ImageReference,
+    target_imgref: Option<&OstreeImageReference>,
+    quiet: bool,
+    prog: ProgressWriter,
+) -> Result<Box<ImageState>> {
+    match prepare_for_pull(repo, imgref, target_imgref).await? {
+        PreparedPullResult::AlreadyPresent(existing) => Ok(existing),
+        PreparedPullResult::Ready(prepared_image_meta) => Ok(pull_from_prepared(
+            repo,
+            imgref,
+            target_imgref,
+            quiet,
+            prog,
+            prepared_image_meta,
+        )
+        .await?),
     }
-    // Convert to a hashset of just the image names
-    let image_names = HashSet::from_iter(all_bound_images.iter().map(|img| img.image.as_str()));
-    let pruned = sysroot
-        .get_ensure_imgstore()?
-        .prune_except_roots(&image_names)
-        .await?;
-    tracing::debug!("Pruned images: {}", pruned.len());
-    Ok(())
 }
 
 pub(crate) async fn wipe_ostree(sysroot: Sysroot) -> Result<()> {
