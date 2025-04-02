@@ -1,7 +1,5 @@
-use std::{
-    os::fd::AsRawFd,
-    path::{Path, PathBuf},
-};
+use std::os::fd::AsRawFd;
+use std::path::Path;
 
 use anyhow::Result;
 use camino::Utf8Path;
@@ -147,8 +145,7 @@ pub(crate) fn run_alongside(image: &str, mut testargs: libtest_mimic::Arguments)
             cmd!(sh, "sudo {BASE_ARGS...} {image} bootc install to-existing-root --acknowledge-destructive {generic_inst_args...}").run()?;
             generic_post_install_verification()?;
             let root = &Dir::open_ambient_dir("/ostree", cap_std::ambient_authority()).unwrap();
-            let mut path = PathBuf::from(".");
-            crate::selinux::verify_selinux_recurse(root, &mut path, false)?;
+            crate::selinux::verify_selinux_recurse(root, false)?;
             Ok(())
         }),
         Trial::test("Install to non-default stateroot", move || {

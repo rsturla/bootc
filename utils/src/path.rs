@@ -18,9 +18,8 @@ impl<'a> Display for PathQuotedDisplay<'a> {
             }
         }
         if let Ok(r) = shlex::bytes::try_quote(self.path.as_os_str().as_bytes()) {
-            if let Ok(s) = std::str::from_utf8(&r) {
-                return f.write_str(s);
-            }
+            let s = String::from_utf8_lossy(&r);
+            return f.write_str(&s);
         }
         // Should not happen really
         return Err(std::fmt::Error);
@@ -40,6 +39,8 @@ impl<'a> PathQuotedDisplay<'a> {
 
 #[cfg(test)]
 mod tests {
+    use std::ffi::OsStr;
+
     use super::*;
 
     #[test]
@@ -60,5 +61,13 @@ mod tests {
         for (v, quoted) in cases {
             assert_eq!(quoted, format!("{}", PathQuotedDisplay::new(&v)));
         }
+    }
+
+    #[test]
+    fn test_nonutf8() {
+        let p = Path::new(OsStr::from_bytes(b"/foo/somenonutf8\xEE/bar"));
+        assert!(p.to_str().is_none());
+        let q = PathQuotedDisplay::new(&p).to_string();
+        assert_eq!(q, r#"'/foo/somenonutf8�/bar'"#);
     }
 }
