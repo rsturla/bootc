@@ -191,11 +191,47 @@ pub async fn unencapsulate(repo: &ostree::Repo, imgref: &OstreeImageReference) -
     importer.unencapsulate().await
 }
 
+pub(crate) struct Decompressor {
+    inner: Box<dyn Read + Send + 'static>,
+}
+
+impl Read for Decompressor {
+    fn read(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
+        self.inner.read(buf)
+    }
+}
+
+impl Drop for Decompressor {
+    fn drop(&mut self) {
+        // We need to make sure to flush out the decompressor and/or
+        // tar stream here.  For tar, we might not read through the
+        // entire stream, because the archive has zero-block-markers
+        // at the end; or possibly because the final entry is filtered
+        // in filter_tar so we don't advance to read the data.  For
+        // decompressor, zstd:chunked layers will have
+        // metadata/skippable frames at the end of the stream.  That
+        // data isn't relevant to the tar stream, but if we don't read
+        // it here then on the skopeo proxy we'll block trying to
+        // write the end of the stream.  That in turn will block our
+        // client end trying to call FinishPipe, and we end up
+        // deadlocking ourselves through skopeo.
+        //
+        // https://github.com/bootc-dev/bootc/issues/1204
+
+        let mut sink = std::io::sink();
+        match std::io::copy(&mut self.inner, &mut sink) {
+            Err(e) => tracing::debug!("Ignoring error while dropping decompressor: {e}"),
+            Ok(0) => { /* We already read everything and are happy */ }
+            Ok(n) => tracing::debug!("Read extra {n} bytes at end of decompressor stream"),
+        }
+    }
+}
+
 /// Create a decompressor for this MIME type, given a stream of input.
 pub(crate) fn decompressor(
     media_type: &oci_image::MediaType,
     src: impl Read + Send + 'static,
-) -> Result<Box<dyn Read + Send + 'static>> {
+) -> Result<Decompressor> {
     let r: Box<dyn std::io::Read + Send + 'static> = match media_type {
         oci_image::MediaType::ImageLayerZstd => Box::new(zstd::stream::read::Decoder::new(src)?),
         oci_image::MediaType::ImageLayerGzip => Box::new(flate2::bufread::GzDecoder::new(
@@ -205,7 +241,7 @@ pub(crate) fn decompressor(
         oci_image::MediaType::Other(t) if t.as_str() == DOCKER_TYPE_LAYER_TAR => Box::new(src),
         o => anyhow::bail!("Unhandled layer type: {}", o),
     };
-    Ok(r)
+    Ok(Decompressor { inner: r })
 }
 
 /// A wrapper for [`get_blob`] which fetches a layer and decompresses it.

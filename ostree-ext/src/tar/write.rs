@@ -367,26 +367,6 @@ async fn filter_tar_async(
 
         let r = filter_tar(&mut src, dest, &config, &repo_tmpdir);
 
-        // We need to make sure to flush out the decompressor and/or
-        // tar stream here.  For tar, we might not read through the
-        // entire stream, because the archive has zero-block-markers
-        // at the end; or possibly because the final entry is filtered
-        // in filter_tar so we don't advance to read the data.  For
-        // decompressor, zstd:chunked layers will have
-        // metadata/skippable frames at the end of the stream.  That
-        // data isn't relevant to the tar stream, but if we don't read
-        // it here then on the skopeo proxy we'll block trying to
-        // write the end of the stream.  That in turn will block our
-        // client end trying to call FinishPipe, and we end up
-        // deadlocking ourselves through skopeo.
-        //
-        // https://github.com/bootc-dev/bootc/issues/1204
-        let mut sink = std::io::sink();
-        let n = std::io::copy(&mut src, &mut sink)?;
-        if n != 0 {
-            tracing::debug!("Read extra {n} bytes at end of decompressor stream");
-        }
-
         Ok(r)
     });
     let copier = tokio::io::copy(&mut rx_buf, &mut dest);
