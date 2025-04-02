@@ -7,6 +7,7 @@
 //! In the future, this may also evolve into parsing the tar
 //! stream in Rust, not in C.
 
+use crate::container::Decompressor;
 use crate::Result;
 use anyhow::{anyhow, Context};
 use camino::{Utf8Component, Utf8Path, Utf8PathBuf};
@@ -362,10 +363,12 @@ async fn filter_tar_async(
     let config = config.clone();
     let tar_transformer = crate::tokio_util::spawn_blocking_flatten(move || {
         let src = tokio_util::io::SyncIoBridge::new(src);
-        let mut src = crate::container::decompressor(&media_type, src)?;
+        let mut src = Decompressor::new(&media_type, src)?;
         let dest = tokio_util::io::SyncIoBridge::new(tx_buf);
 
         let r = filter_tar(&mut src, dest, &config, &repo_tmpdir);
+
+        src.finish()?;
 
         Ok(r)
     });

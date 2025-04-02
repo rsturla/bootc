@@ -7,6 +7,7 @@
 
 use super::*;
 use crate::chunking::{self, Chunk};
+use crate::container::Decompressor;
 use crate::logging::system_repo_journal_print;
 use crate::refescape;
 use crate::sysroot::SysrootLock;
@@ -779,8 +780,8 @@ impl ImageImporter {
                     let txn = repo.auto_transaction(Some(cancellable))?;
                     let mut importer = crate::tar::Importer::new_for_object_set(&repo);
                     let blob = tokio_util::io::SyncIoBridge::new(blob);
-                    let blob = super::unencapsulate::decompressor(&media_type, blob)?;
-                    let mut archive = tar::Archive::new(blob);
+                    let mut blob = Decompressor::new(&media_type, blob)?;
+                    let mut archive = tar::Archive::new(&mut blob);
                     importer.import_objects(&mut archive, Some(cancellable))?;
                     let commit = if write_refs {
                         let commit = importer.finish_import_object_set()?;
@@ -791,6 +792,7 @@ impl ImageImporter {
                         None
                     };
                     txn.commit(Some(cancellable))?;
+                    blob.finish()?;
                     Ok::<_, anyhow::Error>(commit)
                 })
                 .map_err(|e| e.context(format!("Layer {}", layer.layer.digest())));
@@ -825,8 +827,8 @@ impl ImageImporter {
                     let txn = repo.auto_transaction(Some(cancellable))?;
                     let mut importer = crate::tar::Importer::new_for_commit(&repo, remote);
                     let blob = tokio_util::io::SyncIoBridge::new(blob);
-                    let blob = super::unencapsulate::decompressor(&media_type, blob)?;
-                    let mut archive = tar::Archive::new(blob);
+                    let mut blob = Decompressor::new(&media_type, blob)?;
+                    let mut archive = tar::Archive::new(&mut blob);
                     importer.import_commit(&mut archive, Some(cancellable))?;
                     let (commit, verify_text) = importer.finish_import_commit();
                     if write_refs {
@@ -835,6 +837,7 @@ impl ImageImporter {
                     }
                     repo.mark_commit_partial(&commit, false)?;
                     txn.commit(Some(cancellable))?;
+                    blob.finish()?;
                     Ok::<_, anyhow::Error>((commit, verify_text))
                 });
             let (commit, verify_text) =
