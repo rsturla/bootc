@@ -193,6 +193,7 @@ pub async fn unencapsulate(repo: &ostree::Repo, imgref: &OstreeImageReference) -
 
 pub(crate) struct Decompressor {
     inner: Box<dyn Read + Send + 'static>,
+    finished: bool,
 }
 
 impl Read for Decompressor {
@@ -203,6 +204,50 @@ impl Read for Decompressor {
 
 impl Drop for Decompressor {
     fn drop(&mut self) {
+        if self.finished {
+            return;
+        }
+
+        // We really should not get here; users are required to call
+        // `finish()` to clean up the stream.  But we'll give
+        // best-effort to clean things up nonetheless.  If things go
+        // wrong, then panic, because we're in a bad state and it's
+        // likely that we end up with a broken pipe error or a
+        // deadlock.
+        self._finish().expect("Decompressor::finish MUST be called")
+    }
+}
+
+impl Decompressor {
+    /// Create a decompressor for this MIME type, given a stream of input.
+    pub(crate) fn new(
+        media_type: &oci_image::MediaType,
+        src: impl Read + Send + 'static,
+    ) -> Result<Self> {
+        let r: Box<dyn std::io::Read + Send + 'static> = match media_type {
+            oci_image::MediaType::ImageLayerZstd => {
+                Box::new(zstd::stream::read::Decoder::new(src)?)
+            }
+            oci_image::MediaType::ImageLayerGzip => Box::new(flate2::bufread::GzDecoder::new(
+                std::io::BufReader::new(src),
+            )),
+            oci_image::MediaType::ImageLayer => Box::new(src),
+            oci_image::MediaType::Other(t) if t.as_str() == DOCKER_TYPE_LAYER_TAR => Box::new(src),
+            o => anyhow::bail!("Unhandled layer type: {}", o),
+        };
+        Ok(Self {
+            inner: r,
+            finished: false,
+        })
+    }
+
+    pub(crate) fn finish(mut self) -> Result<()> {
+        self._finish()
+    }
+
+    fn _finish(&mut self) -> Result<()> {
+        self.finished = true;
+
         // We need to make sure to flush out the decompressor and/or
         // tar stream here.  For tar, we might not read through the
         // entire stream, because the archive has zero-block-markers
@@ -219,29 +264,14 @@ impl Drop for Decompressor {
         // https://github.com/bootc-dev/bootc/issues/1204
 
         let mut sink = std::io::sink();
-        match std::io::copy(&mut self.inner, &mut sink) {
-            Err(e) => tracing::debug!("Ignoring error while dropping decompressor: {e}"),
-            Ok(0) => { /* We already read everything and are happy */ }
-            Ok(n) => tracing::debug!("Read extra {n} bytes at end of decompressor stream"),
-        }
-    }
-}
+        let n = std::io::copy(&mut self.inner, &mut sink)?;
 
-/// Create a decompressor for this MIME type, given a stream of input.
-pub(crate) fn decompressor(
-    media_type: &oci_image::MediaType,
-    src: impl Read + Send + 'static,
-) -> Result<Decompressor> {
-    let r: Box<dyn std::io::Read + Send + 'static> = match media_type {
-        oci_image::MediaType::ImageLayerZstd => Box::new(zstd::stream::read::Decoder::new(src)?),
-        oci_image::MediaType::ImageLayerGzip => Box::new(flate2::bufread::GzDecoder::new(
-            std::io::BufReader::new(src),
-        )),
-        oci_image::MediaType::ImageLayer => Box::new(src),
-        oci_image::MediaType::Other(t) if t.as_str() == DOCKER_TYPE_LAYER_TAR => Box::new(src),
-        o => anyhow::bail!("Unhandled layer type: {}", o),
-    };
-    Ok(Decompressor { inner: r })
+        if n > 0 {
+            tracing::debug!("Read extra {n} bytes at end of decompressor stream");
+        }
+
+        Ok(())
+    }
 }
 
 /// A wrapper for [`get_blob`] which fetches a layer and decompresses it.
@@ -303,5 +333,33 @@ pub(crate) async fn fetch_layer<'a>(
         Ok((reader, Either::Left(driver), media_type))
     } else {
         Ok((Box::new(blob), Either::Right(driver), media_type))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    struct BrokenPipe;
+
+    impl Read for BrokenPipe {
+        fn read(&mut self, _buf: &mut [u8]) -> std::io::Result<usize> {
+            std::io::Result::Err(std::io::ErrorKind::BrokenPipe.into())
+        }
+    }
+
+    #[test]
+    #[should_panic(expected = "Decompressor::finish MUST be called")]
+    fn test_drop_decompressor_with_finish_error_should_panic() {
+        let broken = BrokenPipe;
+        let d = Decompressor::new(&oci_image::MediaType::ImageLayer, broken).unwrap();
+        drop(d)
+    }
+
+    #[test]
+    fn test_drop_decompressor_with_successful_finish() {
+        let empty = std::io::empty();
+        let d = Decompressor::new(&oci_image::MediaType::ImageLayer, empty).unwrap();
+        drop(d)
     }
 }
