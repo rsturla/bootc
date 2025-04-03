@@ -712,6 +712,27 @@ async fn initialize_ostree_root(
     Ok((Storage::new(sysroot, &temp_run)?, has_ostree, imgstore))
 }
 
+fn check_disk_space(
+    repo_fd: impl AsFd,
+    image_meta: &PreparedImportMeta,
+    imgref: &ImageReference,
+) -> Result<()> {
+    let stat = rustix::fs::fstatvfs(repo_fd)?;
+    let bytes_avail: u64 = stat.f_bsize * stat.f_bavail;
+    tracing::trace!("bytes_avail: {bytes_avail}");
+
+    if image_meta.bytes_to_fetch > bytes_avail {
+        anyhow::bail!(
+            "Insufficient free space for {image} (available: {bytes_avail} required: {bytes_to_fetch})",
+            bytes_avail = ostree_ext::glib::format_size(bytes_avail),
+            bytes_to_fetch = ostree_ext::glib::format_size(image_meta.bytes_to_fetch),
+            image = imgref.image,
+        );
+    }
+
+    Ok(())
+}
+
 #[context("Creating ostree deployment")]
 async fn install_container(
     state: &State,
@@ -760,6 +781,7 @@ async fn install_container(
         match prepare_for_pull(repo, &spec_imgref, Some(&state.target_imgref)).await? {
             PreparedPullResult::AlreadyPresent(existing) => existing,
             PreparedPullResult::Ready(image_meta) => {
+                check_disk_space(root_setup.physical_root.as_fd(), &image_meta, &spec_imgref)?;
                 pull_from_prepared(
                     repo,
                     &spec_imgref,
