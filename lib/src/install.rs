@@ -53,6 +53,7 @@ use serde::{Deserialize, Serialize};
 use self::baseline::InstallBlockDeviceOpts;
 use crate::boundimage::{BoundImage, ResolvedBoundImage};
 use crate::containerenv::ContainerExecutionInfo;
+use crate::deploy::{prepare_for_pull, pull_from_prepared, PreparedImportMeta, PreparedPullResult};
 use crate::lsm;
 use crate::mount::Filesystem;
 use crate::progress_jsonl::ProgressWriter;
@@ -711,6 +712,27 @@ async fn initialize_ostree_root(
     Ok((Storage::new(sysroot, &temp_run)?, has_ostree, imgstore))
 }
 
+fn check_disk_space(
+    repo_fd: impl AsFd,
+    image_meta: &PreparedImportMeta,
+    imgref: &ImageReference,
+) -> Result<()> {
+    let stat = rustix::fs::fstatvfs(repo_fd)?;
+    let bytes_avail: u64 = stat.f_bsize * stat.f_bavail;
+    tracing::trace!("bytes_avail: {bytes_avail}");
+
+    if image_meta.bytes_to_fetch > bytes_avail {
+        anyhow::bail!(
+            "Insufficient free space for {image} (available: {bytes_avail} required: {bytes_to_fetch})",
+            bytes_avail = ostree_ext::glib::format_size(bytes_avail),
+            bytes_to_fetch = ostree_ext::glib::format_size(image_meta.bytes_to_fetch),
+            image = imgref.image,
+        );
+    }
+
+    Ok(())
+}
+
 #[context("Creating ostree deployment")]
 async fn install_container(
     state: &State,
@@ -751,21 +773,28 @@ async fn install_container(
 
     // Pull the container image into the target root filesystem. Since this is
     // an install path, we don't need to fsync() individual layers.
-    let pulled_image = {
-        let spec_imgref = ImageReference::from(src_imageref.clone());
-        let repo = &sysroot.repo();
-        repo.set_disable_fsync(true);
-        let r = crate::deploy::pull(
-            repo,
-            &spec_imgref,
-            Some(&state.target_imgref),
-            false,
-            ProgressWriter::default(),
-        )
-        .await?;
-        repo.set_disable_fsync(false);
-        r
-    };
+    let spec_imgref = ImageReference::from(src_imageref.clone());
+    let repo = &sysroot.repo();
+    repo.set_disable_fsync(true);
+
+    let pulled_image =
+        match prepare_for_pull(repo, &spec_imgref, Some(&state.target_imgref)).await? {
+            PreparedPullResult::AlreadyPresent(existing) => existing,
+            PreparedPullResult::Ready(image_meta) => {
+                check_disk_space(root_setup.physical_root.as_fd(), &image_meta, &spec_imgref)?;
+                pull_from_prepared(
+                    repo,
+                    &spec_imgref,
+                    Some(&state.target_imgref),
+                    false,
+                    ProgressWriter::default(),
+                    image_meta,
+                )
+                .await?
+            }
+        };
+
+    repo.set_disable_fsync(false);
 
     // We need to read the kargs from the target merged ostree commit before
     // we do the deployment.
