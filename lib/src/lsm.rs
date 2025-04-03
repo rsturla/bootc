@@ -37,9 +37,15 @@ fn get_current_security_context() -> Result<String> {
     std::fs::read_to_string(SELF_CURRENT).with_context(|| format!("Reading {SELF_CURRENT}"))
 }
 
+/// Check if the current process has the capability to write SELinux security
+/// contexts unknown to the current policy. In SELinux terms this capability is
+/// gated under `mac_admin` (admin control over SELinux state), and in the Fedora
+/// policy at least it's part of `install_t`.
 #[context("Testing install_t")]
 fn test_install_t() -> Result<bool> {
     let tmpf = tempfile::NamedTempFile::new()?;
+    // Our implementation here writes a label which is always unknown to the current policy
+    // to verify that we have the capability to do so.
     let st = Command::new("chcon")
         .args(["-t", "invalid_bootcinstall_testlabel_t"])
         .arg(tmpf.path())
@@ -48,6 +54,20 @@ fn test_install_t() -> Result<bool> {
     Ok(st.success())
 }
 
+/// Ensure that the current process has the capability to write SELinux security
+/// contexts unknown to the current policy.
+///
+/// See [`test_install_t`] above for how we check for that capability.
+///
+/// In the general case of both upgrade or install, we may e.g. jump major versions
+/// or even operating systems, and we need the ability to write arbitrary labels.
+/// If the current process doesn't already have `mac_admin/install_t` then we
+/// make a new temporary copy of our binary, and give it the same label as /usr/bin/ostree,
+/// which in Fedora derivatives at least was already historically labeled with
+/// the correct install_t label.
+///
+/// However, if you maintain a bootc operating system with SELinux, you should from
+/// the start ensure that /usr/bin/bootc has the correct capabilities.
 #[context("Ensuring selinux install_t type")]
 pub(crate) fn selinux_ensure_install() -> Result<bool> {
     let guardenv = "_bootc_selinuxfs_mounted";
