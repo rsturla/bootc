@@ -55,31 +55,45 @@ credentials from a [CRD](https://kubernetes.io/docs/tasks/extend-kubernetes/cust
 hosted in the API server.  (To do things like this
 it's suggested to reuse the kubelet credentials)
 
-### Adding users and credentials statically in the container build
+### System users and groups (added via packages, etc)
 
-Relative to package-oriented systems, a new ability is to inject
-users and credentials as part of a derived build:
+It is common for packages (deb/rpm/etc) to allocate system users
+or groups as part of e.g `apt|dnf install <server package>` such as Apache or MySQL,
+and this is often done by directly invoking `useradd` or `groupadd` as part
+of package pre/post installation scripts.
 
-```dockerfile
-RUN useradd someuser
-```
+With the`shadow-utils` implementation of `useradd` and the default glibc `files` this will
+result in changes to the traditional `/etc/passwd` and `/etc/shadow` files
+as part of the container build.
 
-However, it is important to understand some two very important issues
-with this as it exists today (the `shadow-utils` implementation of `useradd`)
-and the default glibc `files` backend for the traditional `/etc/passwd`
-and `/etc/shadow` files.
+#### System drift from local /etc/passwd modifications
 
-It is common for user/group IDs are allocated dynamically, and this can result in "drift" (see below).
+When the system is initially installed, the `/etc/passwd` in the container image will be
+applied and contain desired users.
 
-Further, if `/etc/passwd` is modified locally (because there is a machine-local user),
-then any added users injected via `useradd` *will not appear* on subsequent updates by default (they will be
+By default (without `etc = transient`, see below), the `/etc` directory is machine-local
+persistent state. If subsequently `/etc/passwd` is modified local to the machine
+(as is common for e.g. setting a root password) then any new changes in the container
+image (such as users from new packages) *will not appear* on subsequent updates by default (they will be
 in `/usr/etc/passwd` instead - the default image version).
 
-These "system users" that may be created by packaging tools invoking `useradd` (e.g. `apt|dnf install httpd`) that do
-not also install a `sysusers.d` file.  Currently for example, this is the case with
-the CentOS Stream 9 `httpd` package.  Per below, the general solution to this
-is to avoid invoking `useradd` in container builds, and prefer one of the below
-solutions.
+The general best fix for this is to use `systemd-sysusers` instead of allocating
+a user/group at build time at all.
+
+##### Using systemd-sysusers
+
+See [systemd-sysusers](https://www.freedesktop.org/software/systemd/man/latest/systemd-sysusers.html).
+For example in your derived build:
+
+```
+COPY mycustom-user.conf /usr/lib/sysusers.d
+```
+
+A key aspect of how this works is that `sysusers` will make changes
+to the traditional `/etc/passwd` file as necessary on boot instead
+of at build time. If `/etc` is persistent, this can avoid uid/gid drift (but
+in the general case it does mean that uid/gid allocation can
+depend on how a specific machine was upgraded over time).
 
 #### User and group home directories and `/var`
 
@@ -95,20 +109,6 @@ possible.
 This is significantly better than the pattern of allocating users/groups
 at "package install time" (e.g. [Fedora package user/group guidelines](https://docs.fedoraproject.org/en-US/packaging-guidelines/UsersAndGroups/)) because
 it avoids potential UID/GID drift (see below).
-
-#### Using systemd-sysusers
-
-See [systemd-sysusers](https://www.freedesktop.org/software/systemd/man/latest/systemd-sysusers.html).  For example in your derived build:
-
-```
-COPY mycustom-user.conf /usr/lib/sysusers.d
-```
-
-A key aspect of how this works is that `sysusers` will make changes
-to the traditional `/etc/passwd` file as necessary on boot.  If
-`/etc` is persistent, this can avoid uid/gid drift (but
-in the general case it does mean that uid/gid allocation can
-depend on how a specific machine was upgraded over time).
 
 #### Using systemd JSON user records
 
@@ -193,6 +193,23 @@ them; this is the pattern used by cloud-init and [afterburn](https://github.com/
 
 ### UID/GID drift
 
+Any invocation of `useradd` or `groupadd` that does not allocate a *fixed* UID/GID may
+be subject to "drift" in subsequent rebuilds by default.
+
+One possibility is to explicitly force these user/group allocations into a static
+state, via `systemd-sysusers` (per above) or explicitly adding the users with
+static IDs *before* a dpkg/RPM installation script operates on it:
+
+```
+RUN <<EORUN
+set -xeuo pipefail
+groupadd -g 10044 mycustom-group
+useradd -u 10044 -g 10044 -d /dev/null -M mycustom-user
+dnf install -y mycustom-package.rpm
+bootc container lint
+EORUN
+```
+
 Ultimately the `/etc/passwd` and similar files are a mapping
 between names and numeric identifiers.  A problem then becomes
 when this mapping is dynamic and mixed with "stateless"
@@ -212,11 +229,28 @@ and data in `/var/lib/postgres` will always be owned by that UID.
 However in contrast, the cockpit project allocates
 [a floating cockpit-ws user](https://gitlab.com/redhat/centos-stream/rpms/cockpit/-/blob/1909236ad28c7d93238b8b3b806ecf9c4feb7e46/cockpit.spec#L506).
 
-This means that each container image build (without additional work)
-may (due to RPM installation ordering or other reasons) result
-in the uid changing.
+This means that each container image build (without additional work, unlike the
+example at the begining of this section),may (due to RPM installation 
+ordering or other reasons) result in the uid changing.
 
 This can be a problem if that user maintains persistent state.
 Such cases are best handled by being converted to use `sysusers.d`
 (see [Fedora change](https://fedoraproject.org/wiki/Changes/Adopting_sysusers.d_format)) - or again even better, using `DynamicUser=yes` (see above).
+
+
+#### tmpfiles.d use for setting ownership
+
+Systemd's [tmpfiles.d](https://www.freedesktop.org/software/systemd/man/latest/tmpfiles.d.html) provides a way
+to define files and directories in a way that will be processes at startup as needed. One way to work around
+SELinux security context and user or group ownership of a directory or file can be by using the z or Z directives.
+
+These directives will adjust the access mode, user and group ownership and the SELinux security context as
+stated on the doc linked above.
+
+For example, if we need `/var/lib/my_file.conf` to be part of the `tss` group but owned by `root`
+we could create a tmpfiles.d entry with:
+
+```
++z /var/lib/my_file 0640 root tss -
+```
 
