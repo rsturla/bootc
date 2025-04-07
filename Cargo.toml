@@ -53,7 +53,7 @@ indoc = "2.0.5"
 indicatif = "0.17.0"
 fn-error-context = "0.2.1"
 libc = "0.2.154"
-openssl = "0.10.33"
+openssl = "0.10.72"
 rustix = { "version" = "1", features = ["thread", "net", "fs", "system", "process", "mount"] }
 serde = "1.0.199"
 serde_json = "1.0.116"
