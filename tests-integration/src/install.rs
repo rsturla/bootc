@@ -76,8 +76,6 @@ pub(crate) fn run_alongside(image: &str, mut testargs: libtest_mimic::Arguments)
     // Handy defaults
 
     let target_args = &["-v", "/:/target"];
-    // We always need this as we assume we're operating on a local image
-    let generic_inst_args = ["--skip-fetch-check"];
 
     let tests = [
         Trial::test("loopback install", move || {
@@ -88,7 +86,7 @@ pub(crate) fn run_alongside(image: &str, mut testargs: libtest_mimic::Arguments)
             tmpdisk.as_file_mut().set_len(size)?;
             let tmpdisk = tmpdisk.into_temp_path();
             let tmpdisk = tmpdisk.to_str().unwrap();
-            cmd!(sh, "sudo {BASE_ARGS...} -v {tmpdisk}:/disk {image} bootc install to-disk --via-loopback {generic_inst_args...} /disk").run()?;
+            cmd!(sh, "sudo {BASE_ARGS...} -v {tmpdisk}:/disk {image} bootc install to-disk --via-loopback /disk").run()?;
             Ok(())
         }),
         Trial::test(
@@ -100,7 +98,7 @@ pub(crate) fn run_alongside(image: &str, mut testargs: libtest_mimic::Arguments)
                 let tmp_keys = tmpd.path().join("test_authorized_keys");
                 let tmp_keys = tmp_keys.to_str().unwrap();
                 std::fs::write(&tmp_keys, b"ssh-ed25519 ABC0123 testcase@example.com")?;
-                cmd!(sh, "sudo {BASE_ARGS...} {target_args...} -v {tmp_keys}:/test_authorized_keys {image} bootc install to-filesystem {generic_inst_args...} --acknowledge-destructive --karg=foo=bar --replace=alongside --root-ssh-authorized-keys=/test_authorized_keys /target").run()?;
+                cmd!(sh, "sudo {BASE_ARGS...} {target_args...} -v {tmp_keys}:/test_authorized_keys {image} bootc install to-filesystem --acknowledge-destructive --karg=foo=bar --replace=alongside --root-ssh-authorized-keys=/test_authorized_keys /target").run()?;
 
                 // Also test install finalize here
                 cmd!(
@@ -142,7 +140,7 @@ pub(crate) fn run_alongside(image: &str, mut testargs: libtest_mimic::Arguments)
         Trial::test("Install and verify selinux state", move || {
             let sh = &xshell::Shell::new()?;
             reset_root(sh, image)?;
-            cmd!(sh, "sudo {BASE_ARGS...} {image} bootc install to-existing-root --acknowledge-destructive {generic_inst_args...}").run()?;
+            cmd!(sh, "sudo {BASE_ARGS...} {image} bootc install to-existing-root --acknowledge-destructive").run()?;
             generic_post_install_verification()?;
             let root = &Dir::open_ambient_dir("/ostree", cap_std::ambient_authority()).unwrap();
             crate::selinux::verify_selinux_recurse(root, false)?;
@@ -151,7 +149,7 @@ pub(crate) fn run_alongside(image: &str, mut testargs: libtest_mimic::Arguments)
         Trial::test("Install to non-default stateroot", move || {
             let sh = &xshell::Shell::new()?;
             reset_root(sh, image)?;
-            cmd!(sh, "sudo {BASE_ARGS...} {image} bootc install to-existing-root --stateroot {NON_DEFAULT_STATEROOT} --acknowledge-destructive {generic_inst_args...}").run()?;
+            cmd!(sh, "sudo {BASE_ARGS...} {image} bootc install to-existing-root --stateroot {NON_DEFAULT_STATEROOT} --acknowledge-destructive").run()?;
             generic_post_install_verification()?;
             assert!(
                 Utf8Path::new(&format!("/ostree/deploy/{NON_DEFAULT_STATEROOT}")).try_exists()?
@@ -163,7 +161,7 @@ pub(crate) fn run_alongside(image: &str, mut testargs: libtest_mimic::Arguments)
             reset_root(sh, image)?;
             let empty = sh.create_temp_dir()?;
             let empty = empty.path().to_str().unwrap();
-            cmd!(sh, "sudo {BASE_ARGS...} -v {empty}:/usr/lib/bootc/install {image} bootc install to-existing-root {generic_inst_args...}").run()?;
+            cmd!(sh, "sudo {BASE_ARGS...} -v {empty}:/usr/lib/bootc/install {image} bootc install to-existing-root").run()?;
             generic_post_install_verification()?;
             Ok(())
         }),

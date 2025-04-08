@@ -93,11 +93,9 @@ installation in a manufacturing environment from a mirrored registry.
 By default, the installation process will verify that the container (representing the target OS)
 can fetch its own updates.
 
-Additionally note that to perform an install with a target image reference set to an
+Additionally note that to perform an upgrade with a target image reference set to an
 authenticated registry, you must provide a pull secret.  One path is to embed the pull secret into
 the image in `/etc/ostree/auth.json`.
-Alternatively, the secret can be added after an installation process completes and managed separately;
-in that case you will need to specify `--skip-fetch-check`.
 
 ### Configuring the default root filesystem type
 

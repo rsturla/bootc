@@ -124,12 +124,14 @@ pub(crate) struct InstallTargetOpts {
     #[serde(default)]
     pub(crate) enforce_container_sigpolicy: bool,
 
-    /// By default, the accessiblity of the target image will be verified (just the manifest will be fetched).
-    /// Specifying this option suppresses the check; use this when you know the issues it might find
-    /// are addressed.
-    ///
-    /// A common reason this may fail is when one is using an image which requires registry authentication,
-    /// but not embedding the pull secret in the image so that updates can be fetched by the installed OS "day 2".
+    /// Verify the image can be fetched from the bootc image. Updates may fail when the installation
+    /// host is authenticated with the registry but the pull secret is not in the bootc image.
+    #[clap(long)]
+    #[serde(default)]
+    pub(crate) run_fetch_check: bool,
+
+    /// Verify the image can be fetched from the bootc image. Updates may fail when the installation
+    /// host is authenticated with the registry but the pull secret is not in the bootc image.
     #[clap(long)]
     #[serde(default)]
     pub(crate) skip_fetch_check: bool,
@@ -1287,7 +1289,7 @@ async fn prepare_install(
     // And continue to init global state
     osbuild::adjust_for_bootc_image_builder(&rootfs, &tempdir)?;
 
-    if !target_opts.skip_fetch_check {
+    if target_opts.run_fetch_check {
         verify_target_fetch(&tempdir, &target_imgref).await?;
     }
 

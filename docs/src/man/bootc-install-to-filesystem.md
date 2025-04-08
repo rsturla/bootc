@@ -10,7 +10,8 @@ filesystem structure
 \[**\--acknowledge-destructive**\] \[**\--skip-finalize**\]
 \[**\--source-imgref**\] \[**\--target-transport**\]
 \[**\--target-imgref**\] \[**\--enforce-container-sigpolicy**\]
-\[**\--skip-fetch-check**\] \[**\--disable-selinux**\] \[**\--karg**\]
+\[**\--skip-fetch-check**\] \[**\--run-fetch-check**\]
+\[**\--disable-selinux**\] \[**\--karg**\]
 \[**\--root-ssh-authorized-keys**\] \[**\--generic-image**\]
 \[**\--bound-images**\] \[**\--stateroot**\] \[**-h**\|**\--help**\]
 \<*ROOT_PATH*\>
@@ -97,17 +98,16 @@ is currently expected to be empty by default.
     Enabling this option enforces that \`/etc/containers/policy.json\`
     includes a default policy which requires signatures
 
-**\--skip-fetch-check**
+**\--skip-fetch-check (deprecated, see --run-fetch-check)**
 
-:   By default, the accessiblity of the target image will be verified
-    (just the manifest will be fetched). Specifying this option
-    suppresses the check; use this when you know the issues it might
-    find are addressed.
+:   This is now the default and has no effect.
 
-    A common reason this may fail is when one is using an image which
-    requires registry authentication, but not embedding the pull secret
-    in the image so that updates can be fetched by the installed OS
-    \"day 2\".
+**\--run-fetch-check**
+
+:   Verify the target image can be pulled using the bootc image.
+
+    This will ensure the bootc system can be upgraded,
+    i.e. the registry credentials are available on the bootc image.
 
 **\--disable-selinux**
 

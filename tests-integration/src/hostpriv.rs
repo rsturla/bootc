@@ -23,7 +23,11 @@ fn test_loopback_install(image: &'static str) -> Result<()> {
     tmpdisk.as_file_mut().set_len(size)?;
     let tmpdisk = tmpdisk.into_temp_path();
     let tmpdisk = tmpdisk.to_str().unwrap();
-    cmd!(sh, "sudo {base_args...} -v {tmpdisk}:/disk {image} bootc install to-disk --via-loopback --skip-fetch-check /disk").run()?;
+    cmd!(
+        sh,
+        "sudo {base_args...} -v {tmpdisk}:/disk {image} bootc install to-disk --via-loopback /disk"
+    )
+    .run()?;
     Ok(())
 }
 
