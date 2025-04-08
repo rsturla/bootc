@@ -41,6 +41,9 @@ pub(crate) fn reinstall_command(image: &str, ssh_key_file: &str) -> Command {
         // this binary. Since this is no longer an "arcane" bootc command, we can safely avoid this
         // timed warning prompt. TODO: Discuss in https://github.com/containers/bootc/discussions/1060
         "--acknowledge-destructive",
+        // The image is always pulled first, so let's avoid requiring the credentials to be baked
+        // in the image for this check.
+        "--skip-fetch-check",
     ]
     .map(String::from)
     .to_vec();
