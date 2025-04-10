@@ -3,6 +3,7 @@ use std::env;
 use std::ops::Deref;
 
 use anyhow::{Context, Result};
+use cap_std_ext::cap_std;
 use cap_std_ext::cap_std::fs::Dir;
 use cap_std_ext::dirext::CapStdExtDirExt;
 use clap::ValueEnum;
@@ -88,15 +89,18 @@ impl Storage {
         }
         let sysroot_dir = crate::utils::sysroot_dir(&self.sysroot)?;
 
-        if self.sysroot.booted_deployment().is_none() {
-            anyhow::bail!("Not a bootc system (this shouldn't be possible)");
-        }
-
-        // load the sepolicy from the booted ostree deployment so the imgstorage can be
-        // properly labeled with /var/lib/container/storage labels
-        let dep = self.sysroot.booted_deployment().unwrap();
-        let dep_fs = deployment_fd(&self.sysroot, &dep)?;
-        let sepolicy = &ostree::SePolicy::new_at(dep_fs.as_raw_fd(), gio::Cancellable::NONE)?;
+        let sepolicy = if self.sysroot.booted_deployment().is_none() {
+            // fallback to policy from container root
+            // this should only happen during cleanup of a broken install
+            let container_root = Dir::open_ambient_dir("/", cap_std::ambient_authority())?;
+            &ostree::SePolicy::new_at(container_root.as_raw_fd(), gio::Cancellable::NONE)?
+        } else {
+            // load the sepolicy from the booted ostree deployment so the imgstorage can be
+            // properly labeled with /var/lib/container/storage labels
+            let dep = self.sysroot.booted_deployment().unwrap();
+            let dep_fs = deployment_fd(&self.sysroot, &dep)?;
+            &ostree::SePolicy::new_at(dep_fs.as_raw_fd(), gio::Cancellable::NONE)?
+        };
 
         let imgstore = crate::imgstorage::Storage::create(&sysroot_dir, &self.run, Some(sepolicy))?;
         Ok(self.imgstore.get_or_init(|| imgstore))
