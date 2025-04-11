@@ -678,16 +678,24 @@ async fn initialize_ostree_root(
         ostree_ext::fsverity::ensure_verity(repo).await?;
     }
 
-    let stateroot_exists = rootfs_dir.try_exists(format!("ostree/deploy/{stateroot}"))?;
-    ensure!(
-        !stateroot_exists,
-        "Cannot redeploy over extant stateroot {stateroot}"
-    );
-    sysroot
-        .init_osname(stateroot, cancellable)
-        .context("initializing stateroot")?;
+    if let Some(booted) = sysroot.booted_deployment() {
+        if stateroot == booted.stateroot() {
+            anyhow::bail!("Cannot redeploy over booted stateroot {stateroot}");
+        }
+    }
 
     let sysroot_dir = crate::utils::sysroot_dir(&sysroot)?;
+
+    // init_osname fails when ostree/deploy/{stateroot} already exists
+    // the stateroot directory can be left over after a failed install attempt,
+    // so only create it via init_osname if it doesn't exist
+    // (ideally this would be handled by init_osname)
+    let stateroot_path = format!("ostree/deploy/{stateroot}");
+    if !sysroot_dir.try_exists(stateroot_path)? {
+        sysroot
+            .init_osname(stateroot, cancellable)
+            .context("initializing stateroot")?;
+    }
 
     state.tempdir.create_dir("temp-run")?;
     let temp_run = state.tempdir.open_dir("temp-run")?;
