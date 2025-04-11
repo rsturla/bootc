@@ -12,7 +12,8 @@ fn prompt_single_user(user: &crate::users::UserKeys) -> Result<Vec<&crate::users
     let prompt = indoc::formatdoc! {
         "Found only one user ({user}) with {num_keys} SSH authorized keys.
         Would you like to import its SSH authorized keys
-        into the root user on the new bootc system?",
+        into the root user on the new bootc system?
+        Then you can login as root@ using those keys.",
         user = user.user,
         num_keys = user.num_keys(),
     };
@@ -28,8 +29,10 @@ fn prompt_user_selection(
     // TODO: Handle https://github.com/console-rs/dialoguer/issues/77
     let selected_user_indices: Vec<usize> = dialoguer::MultiSelect::new()
         .with_prompt(indoc::indoc! {
-            "Select which user's SSH authorized keys you want to
-            import into the root user of the new bootc system",
+            "Select which user's SSH authorized keys you want to import into
+            the root user of the new bootc system.
+            Then you can login as root@ using those keys.
+            (arrow keys to move, space to select)",
         })
         .items(&keys)
         .interact()?;
