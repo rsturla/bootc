@@ -113,6 +113,8 @@ dependencies = [
  "memchr",
  "pin-project-lite",
  "tokio",
+ "zstd",
+ "zstd-safe",
 ]
 
 [[package]]
@@ -500,22 +502,27 @@ dependencies = [
 [[package]]
 name = "composefs"
 version = "0.2.0"
-source = "git+https://github.com/containers/composefs-rs?rev=55ae2e9ba72f6afda4887d746e6b98f0a1875ac4#55ae2e9ba72f6afda4887d746e6b98f0a1875ac4"
+source = "git+https://github.com/containers/composefs-rs?rev=821eeae93e48f1ee381c49b8cd4d22fda92d27a2#821eeae93e48f1ee381c49b8cd4d22fda92d27a2"
 dependencies = [
  "anyhow",
  "async-compression",
  "clap",
  "containers-image-proxy",
+ "env_logger 0.11.6",
  "hex",
  "indicatif",
+ "log",
  "oci-spec",
  "regex-automata 0.4.9",
- "rustix 0.38.44",
+ "rustix 1.0.3",
+ "serde",
  "sha2",
  "tar",
  "tempfile",
  "thiserror 2.0.12",
  "tokio",
+ "toml",
+ "xxhash-rust",
  "zerocopy 0.8.23",
  "zstd",
 ]
@@ -723,6 +730,16 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a357d28ed41a50f9c765dbfe56cbc04a64e53e5fc58ba79fbc34c10ef3df831f"
 
 [[package]]
+name = "env_filter"
+version = "0.1.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "186e05a59d4c50738528153b83b0b0194d3a29507dfec16eccd4b342903397d0"
+dependencies = [
+ "log",
+ "regex",
+]
+
+[[package]]
 name = "env_home"
 version = "0.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -736,6 +753,19 @@ checksum = "a19187fea3ac7e84da7dacf48de0c45d63c6a76f9490dae389aead16c243fce3"
 dependencies = [
  "log",
  "regex",
+]
+
+[[package]]
+name = "env_logger"
+version = "0.11.6"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "dcaee3d8e3cfc3fd92428d477bc97fc29ec8716d180c0d74c643bb26166660e0"
+dependencies = [
+ "anstream",
+ "anstyle",
+ "env_filter",
+ "humantime",
+ "log",
 ]
 
 [[package]]
@@ -1086,6 +1116,12 @@ checksum = "6c49c37c09c17a53d937dfbb742eb3a961d65a994e6bcdcf37e7399d0cc8ab5e"
 dependencies = [
  "digest",
 ]
+
+[[package]]
+name = "humantime"
+version = "2.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9b112acc8b3adf4b107a8ec20977da0273a8c386765a3ec0229bd500a1443f9f"
 
 [[package]]
 name = "iana-time-zone"
@@ -1782,7 +1818,7 @@ version = "1.0.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "588f6378e4dd99458b60ec275b4477add41ce4fa9f64dcba6f15adccb19b50d6"
 dependencies = [
- "env_logger",
+ "env_logger 0.8.4",
  "log",
  "rand",
 ]
@@ -2877,6 +2913,12 @@ dependencies = [
  "toml",
  "xshell",
 ]
+
+[[package]]
+name = "xxhash-rust"
+version = "0.8.15"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "fdd20c5420375476fbd4394763288da7eb0cc0b8c11deed431a91562af7335d3"
 
 [[package]]
 name = "zerocopy"
