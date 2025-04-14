@@ -287,9 +287,26 @@ mechanism to check the integrity of the upper composefs.
 For more information about this, see
 [this tracking issue](https://github.com/bootc-dev/bootc/issues/1190).
 
-### Enabling fsverity across upgrades
+Note that the default `/etc` and `/var` mounts are unaffected by
+this configuration. Because `/etc` in particular can easily
+contain arbitrary executable code (`/etc/systemd/system` unit files),
+many deployment scenarios that want to hard require fsverity will also
+want a "transient etc" model.
+
+### Caveats
+
+#### Does not apply to logically bound images
+
+The [logically bound images](logically-bound-images.md) store is currently
+implemented using a separate mechanism and configuring fsverity
+for the bootc storage has no effect on it.
+
+#### Enabling fsverity across upgrades
 
 At the current time the integration is only for
 installation; there is not yet support for automatically ensuring that
 fsverity is enabled when upgrading from a state with
 `composefs.enabled = yes` to `composefs.enabled = verity`.
+Because older objects may not have fsverity enabled,
+the new system will likely fail at runtime to access these older files
+across the upgrade.
