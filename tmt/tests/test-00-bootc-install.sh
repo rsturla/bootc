@@ -126,7 +126,7 @@ REALEOF
         -v /root/.ssh:/output \
         --security-opt label=type:unconfined_t \
         "localhost/bootc:tmt" \
-        bootc install to-existing-root --target-transport containers-storage
+        bootc install to-existing-root --target-transport containers-storage --acknowledge-destructive
 
     # Reboot
     tmt-reboot
