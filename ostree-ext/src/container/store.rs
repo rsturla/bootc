@@ -29,6 +29,7 @@ use oci_spec::image::{
 use ostree::prelude::{Cast, FileEnumeratorExt, FileExt, ToVariant};
 use ostree::{gio, glib};
 use std::collections::{BTreeMap, BTreeSet, HashMap};
+use std::fmt::Write as _;
 use std::iter::FromIterator;
 use tokio::sync::mpsc::{Receiver, Sender};
 
@@ -959,10 +960,19 @@ impl ImageImporter {
                     .await
                     .with_context(|| format!("Parsing layer blob {}", layer.layer.digest()))?;
                 layer_commits.push(r.commit);
-                if !r.filtered.is_empty() {
-                    let filtered = HashMap::from_iter(r.filtered.into_iter());
-                    tracing::debug!("Found {} filtered toplevels", filtered.len());
-                    layer_filtered_content.insert(layer.layer.digest().to_string(), filtered);
+                let filtered_owned = HashMap::from_iter(r.filtered.clone());
+                if let Some((filtered, n_rest)) =
+                    bootc_utils::iterator_split_nonempty_rest_count(r.filtered.iter(), 5)
+                {
+                    let mut msg = String::new();
+                    for (path, n) in filtered {
+                        write!(msg, "{path}: {n} ").unwrap();
+                    }
+                    if n_rest > 0 {
+                        write!(msg, "...and {n_rest} more").unwrap();
+                    }
+                    tracing::debug!("Found filtered toplevels: {msg}");
+                    layer_filtered_content.insert(layer.layer.digest().to_string(), filtered_owned);
                 } else {
                     tracing::debug!("No filtered content");
                 }
