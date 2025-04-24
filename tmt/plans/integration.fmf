@@ -3,7 +3,7 @@
 # local image: file:///home/foobar/image.qcow2
 provision:
   how: virtual
-  image: https://composes.stream.centos.org/stream-10/production/CentOS-Stream-10-20250331.0/compose/BaseOS/x86_64/images/CentOS-Stream-GenericCloud-10-20250331.0.x86_64.qcow2
+  image: fedora-rawhide
 prepare:
   - how: install
     package:
@@ -18,7 +18,7 @@ execute:
   discover:
     how: fmf
     test:
-        - /tmt/tests/test-00-bootc-install
+        - /tmt/tests/bootc-install-provision
         - /tmt/tests/test-01-readonly
 
 /test-20-local-upgrade:
@@ -26,7 +26,7 @@ execute:
   discover:
     how: fmf
     test:
-        - /tmt/tests/test-00-bootc-install
+        - /tmt/tests/bootc-install-provision
         - /tmt/tests/test-20-local-upgrade
 
 /test-21-logically-bound-switch:
@@ -34,7 +34,7 @@ execute:
   discover:
     how: fmf
     test:
-        - /tmt/tests/test-00-bootc-install
+        - /tmt/tests/bootc-install-provision
         - /tmt/tests/test-21-logically-bound-switch
 
 /test-22-logically-bound-install:
@@ -44,7 +44,7 @@ execute:
   discover:
     how: fmf
     test:
-        - /tmt/tests/test-00-bootc-install
+        - /tmt/tests/bootc-install-provision
         - /tmt/tests/test-22-logically-bound-install
 
 /test-23-install-outside-container:
@@ -52,5 +52,5 @@ execute:
   discover:
     how: fmf
     test:
-        - /tmt/tests/test-00-bootc-install
+        - /tmt/tests/bootc-install-provision
         - /tmt/tests/test-23-install-outside-container
