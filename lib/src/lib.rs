@@ -18,6 +18,7 @@ pub(crate) mod kargs;
 mod lints;
 mod lsm;
 pub(crate) mod metadata;
+mod overlay;
 mod podman;
 mod progress_jsonl;
 mod reboot;
@@ -27,7 +28,6 @@ mod status;
 mod store;
 mod task;
 mod utils;
-mod overlay;
 
 #[cfg(feature = "docgen")]
 mod docgen;

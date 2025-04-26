@@ -8,7 +8,7 @@ use fn_error_context::context;
 use crate::spec;
 
 #[context("Setting /usr overlay")]
-pub(crate) fn set_usr_overlay(state: spec::FilesystemOverlay) -> Result<()> {
+pub fn set_usr_overlay(state: spec::FilesystemOverlay) -> Result<()> {
     match state {
         spec::FilesystemOverlay::Readonly => {
             tracing::info!("Setting /usr overlay to read-only");

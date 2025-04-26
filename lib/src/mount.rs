@@ -129,7 +129,7 @@ pub(crate) fn mount(dev: &str, target: &Utf8Path) -> Result<()> {
     )
 }
 
-pub(crate) fn unmount(target: &Utf8Path, lazy: bool) -> Result<()> {
+pub fn unmount(target: &Utf8Path, lazy: bool) -> Result<()> {
     let args = if lazy {
         vec!["-l", target.as_str()]
     } else {
