@@ -27,6 +27,7 @@ mod status;
 mod store;
 mod task;
 mod utils;
+mod overlay;
 
 #[cfg(feature = "docgen")]
 mod docgen;
