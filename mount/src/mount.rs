@@ -22,11 +22,8 @@ use rustix::{
 };
 use serde::Deserialize;
 
-#[cfg(feature = "install-to-disk")]
-use crate::task::Task;
-
 /// Well known identifier for pid 1
-pub(crate) const PID1: Pid = const {
+pub const PID1: Pid = const {
     match Pid::from_raw(1) {
         Some(v) => v,
         None => panic!("Expected to parse pid1"),
@@ -36,21 +33,21 @@ pub(crate) const PID1: Pid = const {
 #[derive(Deserialize, Debug)]
 #[serde(rename_all = "kebab-case")]
 #[allow(dead_code)]
-pub(crate) struct Filesystem {
+pub struct Filesystem {
     // Note if you add an entry to this list, you need to change the --output invocation below too
-    pub(crate) source: String,
-    pub(crate) target: String,
+    pub source: String,
+    pub target: String,
     #[serde(rename = "maj:min")]
-    pub(crate) maj_min: String,
-    pub(crate) fstype: String,
-    pub(crate) options: String,
-    pub(crate) uuid: Option<String>,
-    pub(crate) children: Option<Vec<Filesystem>>,
+    pub maj_min: String,
+    pub fstype: String,
+    pub options: String,
+    pub uuid: Option<String>,
+    pub children: Option<Vec<Filesystem>>,
 }
 
 #[derive(Deserialize, Debug)]
-pub(crate) struct Findmnt {
-    pub(crate) filesystems: Vec<Filesystem>,
+pub struct Findmnt {
+    pub filesystems: Vec<Filesystem>,
 }
 
 fn run_findmnt(args: &[&str], path: &str) -> Result<Findmnt> {
@@ -80,20 +77,19 @@ fn findmnt_filesystem(args: &[&str], path: &str) -> Result<Filesystem> {
 #[context("Inspecting filesystem {path}")]
 /// Inspect a target which must be a mountpoint root - it is an error
 /// if the target is not the mount root.
-pub(crate) fn inspect_filesystem(path: &Utf8Path) -> Result<Filesystem> {
+pub fn inspect_filesystem(path: &Utf8Path) -> Result<Filesystem> {
     findmnt_filesystem(&["--mountpoint"], path.as_str())
 }
 
 #[context("Inspecting filesystem by UUID {uuid}")]
 /// Inspect a filesystem by partition UUID
-pub(crate) fn inspect_filesystem_by_uuid(uuid: &str) -> Result<Filesystem> {
+pub fn inspect_filesystem_by_uuid(uuid: &str) -> Result<Filesystem> {
     findmnt_filesystem(&["--source"], &(format!("UUID={uuid}")))
 }
 
 // Check if a specified device contains an already mounted filesystem
 // in the root mount namespace
-#[cfg(feature = "install-to-disk")]
-pub(crate) fn is_mounted_in_pid1_mountns(path: &str) -> Result<bool> {
+pub fn is_mounted_in_pid1_mountns(path: &str) -> Result<bool> {
     let o = run_findmnt(&["-N"], "1")?;
 
     let mounted = o.filesystems.iter().any(|fs| is_source_mounted(path, fs));
@@ -102,8 +98,7 @@ pub(crate) fn is_mounted_in_pid1_mountns(path: &str) -> Result<bool> {
 }
 
 // Recursively check a given filesystem to see if it contains an already mounted source
-#[cfg(feature = "install-to-disk")]
-pub(crate) fn is_source_mounted(path: &str, mounted_fs: &Filesystem) -> bool {
+pub fn is_source_mounted(path: &str, mounted_fs: &Filesystem) -> bool {
     if mounted_fs.source.contains(path) {
         return true;
     }
@@ -120,13 +115,10 @@ pub(crate) fn is_source_mounted(path: &str, mounted_fs: &Filesystem) -> bool {
 }
 
 /// Mount a device to the target path.
-#[cfg(feature = "install-to-disk")]
-pub(crate) fn mount(dev: &str, target: &Utf8Path) -> Result<()> {
-    Task::new_and_run(
-        format!("Mounting {target}"),
-        "mount",
-        [dev, target.as_str()],
-    )
+pub fn mount(dev: &str, target: &Utf8Path) -> Result<()> {
+    Command::new("mount")
+        .args([dev, target.as_str()])
+        .run_with_cmd_context()
 }
 
 /// If the fsid of the passed path matches the fsid of the same path rooted
@@ -134,7 +126,7 @@ pub(crate) fn mount(dev: &str, target: &Utf8Path) -> Result<()> {
 /// filesystem between container and host.
 /// Path should be absolute.
 #[context("Comparing filesystems at {path} and /proc/1/root/{path}")]
-pub(crate) fn is_same_as_host(path: &Utf8Path) -> Result<bool> {
+pub fn is_same_as_host(path: &Utf8Path) -> Result<bool> {
     // Add a leading '/' in case a relative path is passed
     let path = Utf8Path::new("/").join(path);
 
@@ -155,7 +147,7 @@ pub(crate) fn is_same_as_host(path: &Utf8Path) -> Result<bool> {
 /// for a mount from that namespace.
 #[allow(unsafe_code)]
 #[context("Opening mount tree from pid")]
-pub(crate) fn open_tree_from_pidns(
+pub fn open_tree_from_pidns(
     pid: rustix::process::Pid,
     path: &Utf8Path,
     recursive: bool,
@@ -259,7 +251,7 @@ pub(crate) fn open_tree_from_pidns(
 
 /// Create a bind mount from the mount namespace of the target pid
 /// into our mount namespace.
-pub(crate) fn bind_mount_from_pidns(
+pub fn bind_mount_from_pidns(
     pid: Pid,
     src: &Utf8Path,
     target: &Utf8Path,
@@ -279,7 +271,7 @@ pub(crate) fn bind_mount_from_pidns(
 
 // If the target path is not already mirrored from the host (e.g. via -v /dev:/dev)
 // then recursively mount it.
-pub(crate) fn ensure_mirrored_host_mount(path: impl AsRef<Utf8Path>) -> Result<()> {
+pub fn ensure_mirrored_host_mount(path: impl AsRef<Utf8Path>) -> Result<()> {
     let path = path.as_ref();
     // If we didn't have this in our filesystem already (e.g. for /var/lib/containers)
     // then create it now.

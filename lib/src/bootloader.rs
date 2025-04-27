@@ -4,6 +4,7 @@ use fn_error_context::context;
 
 use crate::task::Task;
 use bootc_blockdev::PartitionTable;
+use bootc_mount as mount;
 
 /// The name of the mountpoint for efi (as a subdirectory of /boot, or at the toplevel)
 pub(crate) const EFI_DIR: &str = "efi";
@@ -33,7 +34,7 @@ pub(crate) fn install_via_bootupd(
 #[context("Installing bootloader using zipl")]
 pub(crate) fn install_via_zipl(device: &PartitionTable, boot_uuid: &str) -> Result<()> {
     // Identify the target boot partition from UUID
-    let fs = crate::mount::inspect_filesystem_by_uuid(boot_uuid)?;
+    let fs = mount::inspect_filesystem_by_uuid(boot_uuid)?;
     let boot_dir = Utf8Path::new(&fs.target);
     let maj_min = fs.maj_min;
 
