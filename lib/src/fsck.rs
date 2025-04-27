@@ -9,7 +9,6 @@
 use std::fmt::Write as _;
 use std::future::Future;
 use std::pin::Pin;
-use std::process::Command;
 
 use bootc_utils::iterator_split_nonempty_rest_count;
 use camino::Utf8PathBuf;
@@ -299,13 +298,15 @@ pub(crate) async fn fsck(storage: &Storage, mut output: impl std::io::Write) -> 
 
     // Run an `ostree fsck` (yes, ostree exposes enough APIs
     // that we could reimplement this in Rust, but eh)
-    let st = Command::new("ostree")
-        .arg("fsck")
-        .stdin(std::process::Stdio::inherit())
-        .status()?;
-    if !st.success() {
-        anyhow::bail!("ostree fsck failed");
-    }
+    // TODO: Fix https://github.com/bootc-dev/bootc/issues/1216 so we can
+    // do this.
+    // let st = Command::new("ostree")
+    //     .arg("fsck")
+    //     .stdin(std::process::Stdio::inherit())
+    //     .status()?;
+    // if !st.success() {
+    //     anyhow::bail!("ostree fsck failed");
+    // }
 
     Ok(())
 }
