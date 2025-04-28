@@ -299,9 +299,6 @@ fn lint_inner<'skip>(
     })
 }
 
-/// check for the existence of the /var/run directory
-/// if it exists we need to check that it links to /run if not error
-/// if it does not exist error.
 #[context("Linting")]
 pub(crate) fn lint<'skip>(
     root: &Dir,
@@ -329,6 +326,8 @@ pub(crate) fn lint<'skip>(
     Ok(())
 }
 
+/// check for the existence of the /var/run directory
+/// if it exists we need to check that it links to /run if not error
 #[distributed_slice(LINTS)]
 static LINT_VAR_RUN: Lint = Lint::new_fatal(
     "var-run",
