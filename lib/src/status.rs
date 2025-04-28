@@ -362,6 +362,7 @@ fn write_row_name(mut out: impl Write, s: &str, prefix_len: usize) -> Result<()>
 fn human_render_slot(
     mut out: impl Write,
     slot: Slot,
+    entry: &crate::spec::BootEntry,
     image: &crate::spec::ImageStatus,
 ) -> Result<()> {
     let transport = &image.image.transport;
@@ -407,11 +408,18 @@ fn human_render_slot(
         writeln!(out, "{timestamp}")?;
     }
 
+    tracing::debug!("pinned={}", entry.pinned);
+
     Ok(())
 }
 
 /// Output a rendering of a non-container boot entry.
-fn human_render_slot_ostree(mut out: impl Write, slot: Slot, ostree_commit: &str) -> Result<()> {
+fn human_render_slot_ostree(
+    mut out: impl Write,
+    slot: Slot,
+    entry: &crate::spec::BootEntry,
+    ostree_commit: &str,
+) -> Result<()> {
     // TODO consider rendering more ostree stuff here like rpm-ostree status does
     let prefix = match slot {
         Slot::Staged => "  Staged ostree".into(),
@@ -422,6 +430,7 @@ fn human_render_slot_ostree(mut out: impl Write, slot: Slot, ostree_commit: &str
     writeln!(out, "{prefix}")?;
     write_row_name(&mut out, "Commit", prefix_len)?;
     writeln!(out, "{ostree_commit}")?;
+    tracing::debug!("pinned={}", entry.pinned);
     Ok(())
 }
 
@@ -439,9 +448,9 @@ fn human_readable_output_booted(mut out: impl Write, host: &Host) -> Result<()> 
                 writeln!(out)?;
             }
             if let Some(image) = &host_status.image {
-                human_render_slot(&mut out, slot_name, image)?;
+                human_render_slot(&mut out, slot_name, host_status, image)?;
             } else if let Some(ostree) = host_status.ostree.as_ref() {
-                human_render_slot_ostree(&mut out, slot_name, &ostree.checksum)?;
+                human_render_slot_ostree(&mut out, slot_name, host_status, &ostree.checksum)?;
             } else {
                 writeln!(out, "Current {slot_name} state is unknown")?;
             }
