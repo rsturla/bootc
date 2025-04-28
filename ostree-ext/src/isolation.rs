@@ -1,6 +1,5 @@
 use std::process::Command;
-
-use once_cell::sync::Lazy;
+use std::sync::OnceLock;
 
 pub(crate) const DEFAULT_UNPRIVILEGED_USER: &str = "nobody";
 
@@ -8,14 +7,13 @@ pub(crate) const DEFAULT_UNPRIVILEGED_USER: &str = "nobody";
 /// running under systemd.  We use this in various places
 /// to e.g. log to the journal instead of printing to stdout.
 pub(crate) fn running_in_systemd() -> bool {
-    static RUNNING_IN_SYSTEMD: Lazy<bool> = Lazy::new(|| {
+    static RUNNING_IN_SYSTEMD: OnceLock<bool> = OnceLock::new();
+    *RUNNING_IN_SYSTEMD.get_or_init(|| {
         // See https://www.freedesktop.org/software/systemd/man/systemd.exec.html#%24INVOCATION_ID
         std::env::var_os("INVOCATION_ID")
             .filter(|s| !s.is_empty())
             .is_some()
-    });
-
-    *RUNNING_IN_SYSTEMD
+    })
 }
 
 /// Return a prepared subprocess configuration that will run as an unprivileged user if possible.

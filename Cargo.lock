@@ -1701,7 +1701,6 @@ dependencies = [
  "libsystemd",
  "ocidir",
  "olpc-cjson",
- "once_cell",
  "openssl",
  "ostree",
  "ostree-ext",

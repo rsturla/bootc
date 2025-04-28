@@ -10,7 +10,6 @@ use gvariant::{Marker, Structure};
 use oci_image::ImageManifest;
 use oci_spec::image as oci_image;
 use ocidir::oci_spec::image::{Arch, DigestAlgorithm};
-use once_cell::sync::{Lazy, OnceCell};
 use ostree_ext::chunking::ObjectMetaSized;
 use ostree_ext::container::{store, ManifestDiff};
 use ostree_ext::container::{
@@ -24,6 +23,7 @@ use std::borrow::Cow;
 use std::collections::{HashMap, HashSet};
 use std::io::{BufReader, BufWriter};
 use std::process::{Command, Stdio};
+use std::sync::{LazyLock, OnceLock};
 use std::time::SystemTime;
 use xshell::cmd;
 
@@ -36,7 +36,7 @@ const TEST_REGISTRY_DEFAULT: &str = "localhost:5000";
 
 /// Check if we have skopeo
 fn check_skopeo() -> bool {
-    static HAVE_SKOPEO: OnceCell<bool> = OnceCell::new();
+    static HAVE_SKOPEO: OnceLock<bool> = OnceLock::new();
     *HAVE_SKOPEO.get_or_init(|| {
         Command::new("skopeo")
             .arg("--help")
@@ -56,10 +56,11 @@ fn assert_err_contains<T>(r: Result<T>, s: impl AsRef<str>) {
     }
 }
 
-static TEST_REGISTRY: Lazy<String> = Lazy::new(|| match std::env::var_os("TEST_REGISTRY") {
-    Some(t) => t.to_str().unwrap().to_owned(),
-    None => TEST_REGISTRY_DEFAULT.to_string(),
-});
+static TEST_REGISTRY: LazyLock<String> =
+    LazyLock::new(|| match std::env::var_os("TEST_REGISTRY") {
+        Some(t) => t.to_str().unwrap().to_owned(),
+        None => TEST_REGISTRY_DEFAULT.to_string(),
+    });
 
 // This is mostly just sanity checking these functions are publicly accessible
 #[test]

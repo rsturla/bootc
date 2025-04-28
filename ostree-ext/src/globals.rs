@@ -4,9 +4,9 @@ use super::Result;
 use camino::{Utf8Path, Utf8PathBuf};
 use cap_std_ext::cap_std::fs::Dir;
 use cap_std_ext::RootDir;
-use once_cell::sync::OnceCell;
 use ostree::glib;
 use std::fs::File;
+use std::sync::OnceLock;
 
 struct ConfigPaths {
     persistent: Utf8PathBuf,
@@ -19,10 +19,10 @@ struct ConfigPaths {
 /// user(nonroot) case: /run/user/$uid/ostree ~/.config/ostree   <none>
 fn get_config_paths(root: bool) -> &'static ConfigPaths {
     if root {
-        static PATHS_ROOT: OnceCell<ConfigPaths> = OnceCell::new();
+        static PATHS_ROOT: OnceLock<ConfigPaths> = OnceLock::new();
         PATHS_ROOT.get_or_init(|| ConfigPaths::new("etc", "run", Some("usr/lib")))
     } else {
-        static PATHS_USER: OnceCell<ConfigPaths> = OnceCell::new();
+        static PATHS_USER: OnceLock<ConfigPaths> = OnceLock::new();
         PATHS_USER.get_or_init(|| {
             ConfigPaths::new(
                 Utf8PathBuf::try_from(glib::user_config_dir()).unwrap(),

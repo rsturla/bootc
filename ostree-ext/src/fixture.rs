@@ -24,7 +24,6 @@ use gvariant::{Marker, Structure};
 use io_lifetimes::AsFd;
 use ocidir::cap_std::fs::{DirBuilder, DirBuilderExt as _};
 use ocidir::oci_spec::image::ImageConfigurationBuilder;
-use once_cell::sync::Lazy;
 use regex::Regex;
 use std::borrow::Cow;
 use std::ffi::CString;
@@ -33,7 +32,7 @@ use std::io::{self, Write};
 use std::ops::Add;
 use std::process::{Command, Stdio};
 use std::rc::Rc;
-use std::sync::Arc;
+use std::sync::{Arc, LazyLock};
 use tempfile::TempDir;
 
 const OSTREE_GPG_HOME: &[u8] = include_bytes!("fixtures/ostree-gpg-test-home.tar.gz");
@@ -183,7 +182,7 @@ impl FileDef {
 }
 
 /// This is like a package database, mapping our test fixture files to package names
-static OWNERS: Lazy<Vec<(Regex, &str)>> = Lazy::new(|| {
+static OWNERS: LazyLock<Vec<(Regex, &str)>> = LazyLock::new(|| {
     [
         ("usr/lib/modules/.*/initramfs", "initramfs"),
         ("usr/lib/modules", "kernel"),
