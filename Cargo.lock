@@ -206,6 +206,7 @@ dependencies = [
  "anstyle",
  "anyhow",
  "bootc-blockdev",
+ "bootc-mount",
  "bootc-sysusers",
  "bootc-tmpfiles",
  "bootc-utils",
@@ -243,6 +244,21 @@ dependencies = [
  "tracing",
  "uuid",
  "xshell",
+]
+
+[[package]]
+name = "bootc-mount"
+version = "0.0.0"
+dependencies = [
+ "anyhow",
+ "bootc-utils",
+ "camino",
+ "fn-error-context",
+ "indoc",
+ "libc",
+ "rustix 1.0.3",
+ "serde",
+ "tracing",
 ]
 
 [[package]]

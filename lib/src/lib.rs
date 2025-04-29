@@ -35,7 +35,6 @@ mod bootloader;
 mod containerenv;
 mod install;
 mod kernel;
-pub(crate) mod mount;
 
 #[cfg(feature = "rhsm")]
 mod rhsm;

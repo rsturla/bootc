@@ -27,10 +27,9 @@ use super::RootSetup;
 use super::State;
 use super::RUN_BOOTC;
 use super::RW_KARG;
-use crate::mount;
-#[cfg(feature = "install-to-disk")]
-use crate::mount::is_mounted_in_pid1_mountns;
 use crate::task::Task;
+#[cfg(feature = "install-to-disk")]
+use bootc_mount::is_mounted_in_pid1_mountns;
 
 // This ensures we end up under 512 to be small-sized.
 pub(crate) const BOOTPN_SIZE_MB: u32 = 510;
@@ -421,7 +420,7 @@ pub(crate) fn install_create_rootfs(
         .chain(bootarg)
         .collect::<Vec<_>>();
 
-    mount::mount(&rootdev, &physical_root_path)?;
+    bootc_mount::mount(&rootdev, &physical_root_path)?;
     let target_rootfs = Dir::open_ambient_dir(&physical_root_path, cap_std::ambient_authority())?;
     crate::lsm::ensure_dir_labeled(&target_rootfs, "", Some("/".into()), 0o755.into(), sepolicy)?;
     let physical_root = Dir::open_ambient_dir(&physical_root_path, cap_std::ambient_authority())?;
@@ -429,7 +428,7 @@ pub(crate) fn install_create_rootfs(
     // Create the underlying mount point directory, which should be labeled
     crate::lsm::ensure_dir_labeled(&target_rootfs, "boot", None, 0o755.into(), sepolicy)?;
     if let Some(bootdev) = bootdev {
-        mount::mount(bootdev.node.as_str(), &bootfs)?;
+        bootc_mount::mount(bootdev.node.as_str(), &bootfs)?;
     }
     // And we want to label the root mount of /boot
     crate::lsm::ensure_dir_labeled(&target_rootfs, "boot", None, 0o755.into(), sepolicy)?;

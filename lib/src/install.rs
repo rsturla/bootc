@@ -55,12 +55,12 @@ use crate::boundimage::{BoundImage, ResolvedBoundImage};
 use crate::containerenv::ContainerExecutionInfo;
 use crate::deploy::{prepare_for_pull, pull_from_prepared, PreparedImportMeta, PreparedPullResult};
 use crate::lsm;
-use crate::mount::Filesystem;
 use crate::progress_jsonl::ProgressWriter;
 use crate::spec::ImageReference;
 use crate::store::Storage;
 use crate::task::Task;
 use crate::utils::sigpolicy_from_opt;
+use bootc_mount::Filesystem;
 
 /// The toplevel boot directory
 const BOOT: &str = "boot";
@@ -1287,8 +1287,8 @@ async fn prepare_install(
     tracing::debug!("Target image reference: {target_imgref}");
 
     // A bit of basic global state setup
-    crate::mount::ensure_mirrored_host_mount("/dev")?;
-    crate::mount::ensure_mirrored_host_mount("/var/lib/containers")?;
+    bootc_mount::ensure_mirrored_host_mount("/dev")?;
+    bootc_mount::ensure_mirrored_host_mount("/var/lib/containers")?;
     ensure_var()?;
     setup_tmp_mounts()?;
     // Allocate a temporary directory we can use in various places to avoid
@@ -1763,8 +1763,8 @@ pub(crate) async fn install_to_filesystem(
     {
         tracing::debug!("Mounting host / to {ALONGSIDE_ROOT_MOUNT}");
         std::fs::create_dir(ALONGSIDE_ROOT_MOUNT)?;
-        crate::mount::bind_mount_from_pidns(
-            crate::mount::PID1,
+        bootc_mount::bind_mount_from_pidns(
+            bootc_mount::PID1,
             "/".into(),
             ALONGSIDE_ROOT_MOUNT.into(),
             true,
@@ -1829,7 +1829,7 @@ pub(crate) async fn install_to_filesystem(
     }
 
     // Gather data about the root filesystem
-    let inspect = crate::mount::inspect_filesystem(&fsopts.root_path)?;
+    let inspect = bootc_mount::inspect_filesystem(&fsopts.root_path)?;
 
     // We support overriding the mount specification for root (i.e. LABEL vs UUID versus
     // raw paths).
@@ -1881,7 +1881,7 @@ pub(crate) async fn install_to_filesystem(
     // Find the UUID of /boot because we need it for GRUB.
     let boot_uuid = if boot_is_mount {
         let boot_path = fsopts.root_path.join(BOOT);
-        let u = crate::mount::inspect_filesystem(&boot_path)
+        let u = bootc_mount::inspect_filesystem(&boot_path)
             .context("Inspecting /{BOOT}")?
             .uuid
             .ok_or_else(|| anyhow!("No UUID found for /{BOOT}"))?;
