@@ -1,0 +1,12 @@
+[Unit]
+Description=Cleanup previous the installation after an alongside installation
+Documentation=man:bootc(8)
+ConditionPathExists=/sysroot/etc/bootc-destructive-cleanup
+
+[Service]
+Type=oneshot
+ExecStart=/usr/lib/bootc/fedora-bootc-destructive-cleanup
+PrivateMounts=true
+
+[Install]
+WantedBy=multi-user.target

@@ -1154,7 +1154,8 @@ async fn run_from_opt(opt: Opt) -> Result<()> {
             #[cfg(feature = "install-to-disk")]
             InstallOpts::ToDisk(opts) => crate::install::install_to_disk(opts).await,
             InstallOpts::ToFilesystem(opts) => {
-                crate::install::install_to_filesystem(opts, false).await
+                crate::install::install_to_filesystem(opts, false, crate::install::Cleanup::Skip)
+                    .await
             }
             InstallOpts::ToExistingRoot(opts) => {
                 crate::install::install_to_existing_root(opts).await
