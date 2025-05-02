@@ -44,6 +44,9 @@ pub(crate) fn reinstall_command(image: &str, ssh_key_file: &str) -> Command {
         // The image is always pulled first, so let's avoid requiring the credentials to be baked
         // in the image for this check.
         "--skip-fetch-check",
+        // Always enable the systemd service to cleanup the previous install after booting into the
+        // bootc system for the first time
+        "--cleanup",
     ]
     .map(String::from)
     .to_vec();

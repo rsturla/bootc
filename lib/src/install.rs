@@ -69,6 +69,8 @@ const BOOT: &str = "boot";
 const RUN_BOOTC: &str = "/run/bootc";
 /// The default path for the host rootfs
 const ALONGSIDE_ROOT_MOUNT: &str = "/target";
+/// Global flag to signal the booted system was provisioned via an alongside bootc install
+const DESTRUCTIVE_CLEANUP: &str = "bootc-destructive-cleanup";
 /// This is an ext4 special directory we need to ignore.
 const LOST_AND_FOUND: &str = "lost+found";
 /// The filename of the composefs EROFS superblock; TODO move this into ostree
@@ -334,6 +336,11 @@ pub(crate) struct InstallToExistingRootOpts {
     /// Accept that this is a destructive action and skip a warning timer.
     #[clap(long)]
     pub(crate) acknowledge_destructive: bool,
+
+    /// Add the bootc-destructive-cleanup systemd service to delete files from
+    /// the previous install on first boot
+    #[clap(long)]
+    pub(crate) cleanup: bool,
 
     /// Path to the mounted root; this is now not necessary to provide.
     /// Historically it was necessary to ensure the host rootfs was mounted at here
@@ -1460,7 +1467,11 @@ impl BoundImages {
     }
 }
 
-async fn install_to_filesystem_impl(state: &State, rootfs: &mut RootSetup) -> Result<()> {
+async fn install_to_filesystem_impl(
+    state: &State,
+    rootfs: &mut RootSetup,
+    cleanup: Cleanup,
+) -> Result<()> {
     if matches!(state.selinux_state, SELinuxFinalState::ForceTargetDisabled) {
         rootfs.kargs.push("selinux=0".to_string());
     }
@@ -1489,6 +1500,7 @@ async fn install_to_filesystem_impl(state: &State, rootfs: &mut RootSetup) -> Re
     let bound_images = BoundImages::from_state(state).await?;
 
     // Initialize the ostree sysroot (repo, stateroot, etc.)
+
     {
         let (sysroot, has_ostree, imgstore) = initialize_ostree_root(state, rootfs).await?;
 
@@ -1502,9 +1514,16 @@ async fn install_to_filesystem_impl(state: &State, rootfs: &mut RootSetup) -> Re
             &imgstore,
         )
         .await?;
+
+        if matches!(cleanup, Cleanup::TriggerOnNextBoot) {
+            let sysroot_dir = crate::utils::sysroot_dir(&sysroot)?;
+            tracing::debug!("Writing {DESTRUCTIVE_CLEANUP}");
+            sysroot_dir.atomic_write(format!("etc/{}", DESTRUCTIVE_CLEANUP), b"")?;
+        }
+
         // We must drop the sysroot here in order to close any open file
         // descriptors.
-    }
+    };
 
     // Run this on every install as the penultimate step
     install_finalize(&rootfs.physical_root_path).await?;
@@ -1570,7 +1589,7 @@ pub(crate) async fn install_to_disk(mut opts: InstallToDiskOpts) -> Result<()> {
         (rootfs, loopback_dev)
     };
 
-    install_to_filesystem_impl(&state, &mut rootfs).await?;
+    install_to_filesystem_impl(&state, &mut rootfs, Cleanup::Skip).await?;
 
     // Drop all data about the root except the bits we need to ensure any file descriptors etc. are closed.
     let (root_path, luksdev) = rootfs.into_storage();
@@ -1740,11 +1759,17 @@ fn warn_on_host_root(rootfs_fd: &Dir) -> Result<()> {
     Ok(())
 }
 
+pub enum Cleanup {
+    Skip,
+    TriggerOnNextBoot,
+}
+
 /// Implementation of the `bootc install to-filsystem` CLI command.
 #[context("Installing to filesystem")]
 pub(crate) async fn install_to_filesystem(
     opts: InstallToFilesystemOpts,
     targeting_host_root: bool,
+    cleanup: Cleanup,
 ) -> Result<()> {
     // Gather global state, destructuring the provided options.
     // IMPORTANT: We might re-execute the current process in this function (for SELinux among other things)
@@ -1950,7 +1975,7 @@ pub(crate) async fn install_to_filesystem(
         skip_finalize,
     };
 
-    install_to_filesystem_impl(&state, &mut rootfs).await?;
+    install_to_filesystem_impl(&state, &mut rootfs, cleanup).await?;
 
     // Drop all data about the root except the path to ensure any file descriptors etc. are closed.
     drop(rootfs);
@@ -1961,6 +1986,11 @@ pub(crate) async fn install_to_filesystem(
 }
 
 pub(crate) async fn install_to_existing_root(opts: InstallToExistingRootOpts) -> Result<()> {
+    let cleanup = match opts.cleanup {
+        true => Cleanup::TriggerOnNextBoot,
+        false => Cleanup::Skip,
+    };
+
     let opts = InstallToFilesystemOpts {
         filesystem_opts: InstallTargetFilesystemOpts {
             root_path: opts.root_path,
@@ -1975,7 +2005,7 @@ pub(crate) async fn install_to_existing_root(opts: InstallToExistingRootOpts) ->
         config_opts: opts.config_opts,
     };
 
-    install_to_filesystem(opts, true).await
+    install_to_filesystem(opts, true, cleanup).await
 }
 
 /// Implementation of `bootc install finalize`.
