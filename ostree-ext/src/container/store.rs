@@ -922,6 +922,7 @@ impl ImageImporter {
         let mut layer_commits = Vec::new();
         let mut layer_filtered_content: MetaFilteredData = HashMap::new();
         let have_derived_layers = !import.layers.is_empty();
+        tracing::debug!("Processing layers: {}", import.layers.len());
         for layer in import.layers {
             if let Some(c) = layer.commit {
                 tracing::debug!("Reusing fetched commit {}", c);
@@ -959,6 +960,7 @@ impl ImageImporter {
                 let r = super::unencapsulate::join_fetch(r, driver)
                     .await
                     .with_context(|| format!("Parsing layer blob {}", layer.layer.digest()))?;
+                tracing::debug!("Imported layer: {}", r.commit.as_str());
                 layer_commits.push(r.commit);
                 let filtered_owned = HashMap::from_iter(r.filtered.clone());
                 if let Some((filtered, n_rest)) =
@@ -1058,6 +1060,7 @@ impl ImageImporter {
                 // Layer all subsequent commits
                 checkout_opts.process_whiteouts = true;
                 for commit in layer_commits {
+                    tracing::debug!("Unpacking {commit}");
                     repo.checkout_at(
                         Some(&checkout_opts),
                         (*td).as_raw_fd(),
