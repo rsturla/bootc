@@ -18,7 +18,12 @@ case "${ID}-${VERSION_ID}" in
         dnf -y install nu
         dnf clean all
         ;;
-    "centos-10")
+    "rhel-9."*)
+        dnf -y install https://dl.fedoraproject.org/pub/epel/epel-release-latest-9.noarch.rpm
+        dnf -y install nu
+        dnf clean all
+        ;;
+    "centos-10"|"rhel-10."*)
         # nu is not available in CS10
         curl -kL "https://github.com/nushell/nushell/releases/download/0.103.0/nu-0.103.0-$(uname -m)-unknown-linux-gnu.tar.gz" --output nu.tar.gz
         mkdir -p nu && tar zvxf nu.tar.gz --strip-components=1 -C nu
