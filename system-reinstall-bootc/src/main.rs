@@ -44,7 +44,9 @@ fn run() -> Result<()> {
         podman::reinstall_command(&config.bootc_image, ssh_key_file_path);
 
     println!();
-    println!("Going to run command {:?}", reinstall_podman_command);
+    println!("Going to run command:");
+    println!();
+    println!("{}", reinstall_podman_command.to_string_pretty());
 
     prompt::temporary_developer_protection_prompt()?;
 

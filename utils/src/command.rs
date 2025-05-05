@@ -1,6 +1,7 @@
 //! Helpers intended for [`std::process::Command`] and related structures.
 
 use std::{
+    fmt::Write,
     io::{Read, Seek},
     os::unix::process::CommandExt,
     process::Command,
@@ -33,6 +34,9 @@ pub trait CommandRunExt {
     /// Execute the child process, parsing its stdout as JSON. This uses `run` internally
     /// and will return an error if the child process exits abnormally.
     fn run_and_parse_json<T: serde::de::DeserializeOwned>(&mut self) -> Result<T>;
+
+    /// Print the command as it would be typed into a terminal
+    fn to_string_pretty(&self) -> String;
 }
 
 /// Helpers intended for [`std::process::ExitStatus`].
@@ -146,6 +150,19 @@ impl CommandRunExt for Command {
             // representation that the user can copy paste into their shell
             .context(format!("Failed to run command: {self:#?}"))
     }
+
+    fn to_string_pretty(&self) -> String {
+        std::iter::once(self.get_program())
+            .chain(self.get_args())
+            .fold(String::new(), |mut acc, element| {
+                if !acc.is_empty() {
+                    acc.push(' ');
+                }
+                // SAFETY: Writes to string can't fail
+                write!(&mut acc, "{}", crate::PathQuotedDisplay::new(&element)).unwrap();
+                acc
+            })
+    }
 }
 
 /// Helpers intended for [`tokio::process::Command`].
@@ -223,5 +240,28 @@ mod tests {
         let (success, fail) = tokio::join!(success.run(), fail.run(),);
         success.unwrap();
         assert!(fail.is_err());
+    }
+
+    #[test]
+    fn to_string_pretty() {
+        let mut cmd = Command::new("podman");
+        cmd.args([
+            "run",
+            "--privileged",
+            "--pid=host",
+            "--user=root:root",
+            "-v",
+            "/var/lib/containers:/var/lib/containers",
+            "-v",
+            "this has spaces",
+            "label=type:unconfined_t",
+            "--env=RUST_LOG=trace",
+            "quay.io/ckyrouac/bootc-dev",
+            "bootc",
+            "install",
+            "to-existing-root",
+        ]);
+
+        assert_eq!(cmd.to_string_pretty(), "podman run --privileged '--pid=host' '--user=root:root' -v /var/lib/containers:/var/lib/containers -v 'this has spaces' 'label=type:unconfined_t' '--env=RUST_LOG=trace' quay.io/ckyrouac/bootc-dev bootc install to-existing-root");
     }
 }
