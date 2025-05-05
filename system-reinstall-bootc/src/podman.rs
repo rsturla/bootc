@@ -32,6 +32,11 @@ pub(crate) fn reinstall_command(image: &str, ssh_key_file: &str) -> Command {
     .map(String::from)
     .to_vec();
 
+    // Pass along RUST_LOG from the host to enable detailed output from the bootc command
+    if let Ok(rust_log) = std::env::var("RUST_LOG") {
+        podman_command_and_args.push(format!("--env=RUST_LOG={rust_log}"));
+    }
+
     let mut bootc_command_and_args = [
         "bootc",
         "install",
