@@ -1,4 +1,4 @@
-use crate::{prompt, users::get_all_users_keys};
+use crate::{btrfs, lvm, prompt, users::get_all_users_keys};
 use anyhow::{ensure, Context, Result};
 
 use crossterm::event::{self, Event};
@@ -90,6 +90,34 @@ pub(crate) fn ask_yes_no(prompt: &str, default: bool) -> Result<bool> {
         .wait_for_newline(true)
         .interact()
         .context("prompting")
+}
+
+pub(crate) fn press_enter() {
+    println!();
+    println!("Press <enter> to continue.");
+
+    loop {
+        if let Event::Key(_) = event::read().unwrap() {
+            break;
+        }
+    }
+}
+
+pub(crate) fn mount_warning() -> Result<()> {
+    let mut mounts = btrfs::check_root_siblings()?;
+    mounts.extend(lvm::check_root_siblings()?);
+
+    if !mounts.is_empty() {
+        println!();
+        println!("NOTICE: the following mounts are left unchanged by this tool and will not be automatically mounted unless specified in the bootc image. Consult the bootc documentation to determine the appropriate action for your system.");
+        println!();
+        for m in mounts {
+            println!("{m}");
+        }
+        press_enter();
+    }
+
+    Ok(())
 }
 
 /// Gather authorized keys for all user's of the host system
