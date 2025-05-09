@@ -87,7 +87,12 @@ mod tests {
             (r#"/path/"withquotes'"#, r#""/path/\"withquotes'""#),
         ];
         for (v, quoted) in cases {
-            assert_eq!(quoted, format!("{}", PathQuotedDisplay::new(&v)));
+            let q = PathQuotedDisplay::new(&v).to_string();
+            assert_eq!(quoted, q.as_str());
+            // Also sanity check there's exactly one token
+            let token = shlex::split(&q).unwrap();
+            assert_eq!(1, token.len());
+            assert_eq!(v, token[0]);
         }
     }
 
