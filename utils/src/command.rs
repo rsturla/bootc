@@ -262,6 +262,6 @@ mod tests {
             "to-existing-root",
         ]);
 
-        assert_eq!(cmd.to_string_pretty(), "podman run --privileged '--pid=host' '--user=root:root' -v /var/lib/containers:/var/lib/containers -v 'this has spaces' 'label=type:unconfined_t' '--env=RUST_LOG=trace' quay.io/ckyrouac/bootc-dev bootc install to-existing-root");
+        similar_asserts::assert_eq!(cmd.to_string_pretty(), "podman run --privileged --pid=host --user=root:root -v /var/lib/containers:/var/lib/containers -v 'this has spaces' label=type:unconfined_t --env=RUST_LOG=trace quay.io/ckyrouac/bootc-dev bootc install to-existing-root");
     }
 }

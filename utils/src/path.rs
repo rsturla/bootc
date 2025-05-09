@@ -8,12 +8,21 @@ pub struct PathQuotedDisplay<'a> {
     path: &'a Path,
 }
 
+/// A pretty conservative check for "shell safe" characters. These
+/// are basically ones which are very common in filenames or command line
+/// arguments, which are the primary use case for this. There are definitely
+/// characters such as '+' which are typically safe, but it's fine if
+/// we're overly conservative.
+///
+/// For bash for example: https://www.gnu.org/software/bash/manual/html_node/Definitions.html#index-metacharacter
+fn is_shellsafe(c: char) -> bool {
+    matches!(c, '/' | '.' | '-' | '_' | ',' | '=' | ':') || c.is_alphanumeric()
+}
+
 impl<'a> Display for PathQuotedDisplay<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         if let Some(s) = self.path.to_str() {
-            if s.chars()
-                .all(|c| matches!(c, '/' | '.') || c.is_alphanumeric())
-            {
+            if s.chars().all(is_shellsafe) {
                 return f.write_str(s);
             }
         }
@@ -45,8 +54,27 @@ mod tests {
 
     #[test]
     fn test_unquoted() {
-        for v in ["", "foo", "/foo/bar", "/foo/bar/../baz", "/foo9/bar10"] {
+        for v in [
+            "",
+            "foo",
+            "/foo/bar",
+            "/foo/bar/../baz",
+            "/foo9/bar10",
+            "--foo",
+            "--virtiofs=/foo,/bar",
+            "/foo:/bar",
+            "--label=type=unconfined_t",
+        ] {
             assert_eq!(v, format!("{}", PathQuotedDisplay::new(&v)));
+        }
+    }
+
+    #[test]
+    fn test_bash_metachars() {
+        // https://www.gnu.org/software/bash/manual/html_node/Definitions.html#index-metacharacter
+        let bash_metachars = "|&;()<>";
+        for c in bash_metachars.chars() {
+            assert!(!is_shellsafe(c));
         }
     }
 
@@ -59,7 +87,12 @@ mod tests {
             (r#"/path/"withquotes'"#, r#""/path/\"withquotes'""#),
         ];
         for (v, quoted) in cases {
-            assert_eq!(quoted, format!("{}", PathQuotedDisplay::new(&v)));
+            let q = PathQuotedDisplay::new(&v).to_string();
+            assert_eq!(quoted, q.as_str());
+            // Also sanity check there's exactly one token
+            let token = shlex::split(&q).unwrap();
+            assert_eq!(1, token.len());
+            assert_eq!(v, token[0]);
         }
     }
 
