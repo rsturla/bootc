@@ -340,7 +340,9 @@ pub(crate) async fn prepare_for_pull(
     imgref: &ImageReference,
     target_imgref: Option<&OstreeImageReference>,
 ) -> Result<PreparedPullResult> {
-    let ostree_imgref = &OstreeImageReference::from(imgref.clone());
+    let imgref_canonicalized = imgref.clone().canonicalize()?;
+    tracing::debug!("Canonicalized image reference: {imgref_canonicalized:#}");
+    let ostree_imgref = &OstreeImageReference::from(imgref_canonicalized);
     let mut imp = new_importer(repo, ostree_imgref).await?;
     if let Some(target) = target_imgref {
         imp.set_target(target);
@@ -420,7 +422,9 @@ pub(crate) async fn pull_from_prepared(
     })
     .await;
     let import = import?;
-    let ostree_imgref = &OstreeImageReference::from(imgref.clone());
+    let imgref_canonicalized = imgref.clone().canonicalize()?;
+    tracing::debug!("Canonicalized image reference: {imgref_canonicalized:#}");
+    let ostree_imgref = &OstreeImageReference::from(imgref_canonicalized);
     let wrote_imgref = target_imgref.as_ref().unwrap_or(&ostree_imgref);
 
     if let Some(msg) =

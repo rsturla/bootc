@@ -2,8 +2,8 @@
 
 use std::fmt::Display;
 
-use ostree_ext::container::OstreeImageReference;
 use ostree_ext::oci_spec::image::Digest;
+use ostree_ext::{container::OstreeImageReference, oci_spec};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
@@ -87,6 +87,25 @@ pub struct ImageReference {
     /// Signature verification type
     #[serde(skip_serializing_if = "Option::is_none")]
     pub signature: Option<ImageSignature>,
+}
+
+impl ImageReference {
+    /// Returns a canonicalized version of this image reference, preferring the digest over the tag if both are present.
+    pub fn canonicalize(self) -> Result<Self, anyhow::Error> {
+        let reference: oci_spec::distribution::Reference = self.image.parse()?;
+
+        if reference.digest().is_some() && reference.tag().is_some() {
+            let registry = reference.registry();
+            let repository = reference.repository();
+            let digest = reference.digest().expect("digest is present");
+            return Ok(ImageReference {
+                image: format!("{registry}/{repository}@{digest}"),
+                ..self
+            });
+        }
+
+        Ok(self)
+    }
 }
 
 /// The status of the booted image
@@ -252,6 +271,61 @@ mod tests {
     use std::str::FromStr;
 
     use super::*;
+
+    #[test]
+    fn test_image_reference_canonicalize() {
+        let sample_digest =
+            "sha256:5db6d8b5f34d3cbdaa1e82ed0152a5ac980076d19317d4269db149cbde057bb2";
+        let test_cases = [
+            // When both a tag and digest are present, the digest should be used
+            (
+                format!("quay.io/example/someimage:latest@{}", sample_digest),
+                format!("quay.io/example/someimage@{}", sample_digest),
+            ),
+            // When only a digest is present, it should be used
+            (
+                format!("quay.io/example/someimage@{}", sample_digest),
+                format!("quay.io/example/someimage@{}", sample_digest),
+            ),
+            // When only a tag is present, it should be preserved
+            (
+                "quay.io/example/someimage:latest".to_string(),
+                "quay.io/example/someimage:latest".to_string(),
+            ),
+            // When no tag or digest is present, preserve the original image name
+            (
+                "quay.io/example/someimage".to_string(),
+                "quay.io/example/someimage".to_string(),
+            ),
+            // When used with a local image (i.e. from containers-storage), the functionality should
+            // be the same as previous cases
+            (
+                "localhost/someimage:latest".to_string(),
+                "localhost/someimage:latest".to_string(),
+            ),
+            (
+                format!("localhost/someimage:latest@{sample_digest}"),
+                format!("localhost/someimage@{sample_digest}"),
+            ),
+        ];
+
+        for (initial, expected) in test_cases {
+            let imgref = ImageReference {
+                image: initial.to_string(),
+                transport: "registry".to_string(),
+                signature: None,
+            };
+
+            let canonicalized = imgref.canonicalize();
+            if let Err(e) = canonicalized {
+                panic!("Failed to canonicalize {initial}: {e}");
+            }
+            let canonicalized = canonicalized.unwrap();
+            assert_eq!(canonicalized.image, expected);
+            assert_eq!(canonicalized.transport, "registry");
+            assert_eq!(canonicalized.signature, None);
+        }
+    }
 
     #[test]
     fn test_parse_spec_v1_null() {
