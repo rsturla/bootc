@@ -2,6 +2,7 @@
 
 use std::fmt::Display;
 
+use anyhow::Result;
 use ostree_ext::oci_spec::image::Digest;
 use ostree_ext::{container::OstreeImageReference, oci_spec};
 use schemars::JsonSchema;
@@ -91,20 +92,35 @@ pub struct ImageReference {
 
 impl ImageReference {
     /// Returns a canonicalized version of this image reference, preferring the digest over the tag if both are present.
-    pub fn canonicalize(self) -> Result<Self, anyhow::Error> {
-        let reference: oci_spec::distribution::Reference = self.image.parse()?;
+    pub fn canonicalize(self) -> Result<Self> {
+        match self.transport.as_str() {
+            "containers-storage" | "registry" | "oci" => {
+                let reference: oci_spec::distribution::Reference = self.image.parse()?;
 
-        if reference.digest().is_some() && reference.tag().is_some() {
-            let registry = reference.registry();
-            let repository = reference.repository();
-            let digest = reference.digest().expect("digest is present");
-            return Ok(ImageReference {
-                image: format!("{registry}/{repository}@{digest}"),
-                ..self
-            });
+                // No tag? Just pass through.
+                if reference.tag().is_none() {
+                    return Ok(self);
+                }
+
+                // No digest? Also pass through.
+                let Some(digest) = reference.digest() else {
+                    return Ok(self);
+                };
+
+                let registry = reference.registry();
+                let repository = reference.repository();
+                let r = ImageReference {
+                    image: format!("{registry}/{repository}@{digest}"),
+                    transport: self.transport.clone(),
+                    signature: self.signature.clone(),
+                };
+                return Ok(r);
+            }
+            _ => {
+                // For other transports, we don't do any canonicalization
+                Ok(self)
+            }
         }
-
-        Ok(self)
     }
 }
 
@@ -276,53 +292,84 @@ mod tests {
     fn test_image_reference_canonicalize() {
         let sample_digest =
             "sha256:5db6d8b5f34d3cbdaa1e82ed0152a5ac980076d19317d4269db149cbde057bb2";
+
         let test_cases = [
             // When both a tag and digest are present, the digest should be used
             (
                 format!("quay.io/example/someimage:latest@{}", sample_digest),
                 format!("quay.io/example/someimage@{}", sample_digest),
+                "registry",
+            ),
+            (
+                format!("quay.io/example/someimage:latest@{}", sample_digest),
+                format!("quay.io/example/someimage@{}", sample_digest),
+                "containers-storage",
+            ),
+            (
+                format!("quay.io/example/someimage:latest@{}", sample_digest),
+                format!("quay.io/example/someimage@{}", sample_digest),
+                "oci",
             ),
             // When only a digest is present, it should be used
             (
                 format!("quay.io/example/someimage@{}", sample_digest),
                 format!("quay.io/example/someimage@{}", sample_digest),
+                "registry",
             ),
             // When only a tag is present, it should be preserved
             (
                 "quay.io/example/someimage:latest".to_string(),
                 "quay.io/example/someimage:latest".to_string(),
+                "registry",
             ),
             // When no tag or digest is present, preserve the original image name
             (
                 "quay.io/example/someimage".to_string(),
                 "quay.io/example/someimage".to_string(),
+                "registry",
             ),
             // When used with a local image (i.e. from containers-storage), the functionality should
             // be the same as previous cases
             (
                 "localhost/someimage:latest".to_string(),
                 "localhost/someimage:latest".to_string(),
+                "registry",
             ),
             (
                 format!("localhost/someimage:latest@{sample_digest}"),
                 format!("localhost/someimage@{sample_digest}"),
+                "registry",
+            ),
+            // OCI Archive / Dir should be preserved, and canonicalize should be a no-op
+            (
+                "/tmp/repo".to_string(),
+                "/tmp/repo".to_string(),
+                "oci-archive",
+            ),
+            (
+                "/tmp/image-dir".to_string(),
+                "/tmp/image-dir".to_string(),
+                "dir",
             ),
         ];
 
-        for (initial, expected) in test_cases {
+        for (initial, expected, transport) in test_cases {
             let imgref = ImageReference {
                 image: initial.to_string(),
-                transport: "registry".to_string(),
+                transport: transport.to_string(),
                 signature: None,
             };
 
             let canonicalized = imgref.canonicalize();
             if let Err(e) = canonicalized {
-                panic!("Failed to canonicalize {initial}: {e}");
+                panic!("Failed to canonicalize {initial} with transport {transport}: {e}");
             }
             let canonicalized = canonicalized.unwrap();
-            assert_eq!(canonicalized.image, expected);
-            assert_eq!(canonicalized.transport, "registry");
+            assert_eq!(
+                canonicalized.image, expected,
+                "Mismatch for transport {transport}"
+            );
+            assert_eq!(canonicalized.transport, transport);
             assert_eq!(canonicalized.signature, None);
         }
     }
