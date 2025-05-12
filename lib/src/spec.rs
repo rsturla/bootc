@@ -3,6 +3,8 @@
 use std::fmt::Display;
 
 use anyhow::Result;
+use ostree_ext::container::Transport;
+use ostree_ext::oci_spec::distribution::Reference;
 use ostree_ext::oci_spec::image::Digest;
 use ostree_ext::{container::OstreeImageReference, oci_spec};
 use schemars::JsonSchema;
@@ -90,27 +92,37 @@ pub struct ImageReference {
     pub signature: Option<ImageSignature>,
 }
 
+/// If the reference is in :tag@digest form, strip the tag.
+fn canonicalize_reference(reference: Reference) -> Option<Reference> {
+    // No tag? Just pass through.
+    if reference.tag().is_none() {
+        return None;
+    }
+
+    // No digest? Also pass through.
+    let Some(digest) = reference.digest() else {
+        return None;
+    };
+
+    Some(reference.clone_with_digest(digest.to_owned()))
+}
+
 impl ImageReference {
     /// Returns a canonicalized version of this image reference, preferring the digest over the tag if both are present.
     pub fn canonicalize(self) -> Result<Self> {
-        match self.transport.as_str() {
-            "containers-storage" | "registry" | "oci" => {
+        // TODO maintain a proper transport enum in the spec here
+        let transport = Transport::try_from(self.transport.as_str())?;
+        match transport {
+            Transport::ContainerStorage | Transport::Registry => {
                 let reference: oci_spec::distribution::Reference = self.image.parse()?;
 
-                // No tag? Just pass through.
-                if reference.tag().is_none() {
-                    return Ok(self);
-                }
-
-                // No digest? Also pass through.
-                let Some(digest) = reference.digest() else {
+                // Check if the image reference needs canonicicalization
+                let Some(reference) = canonicalize_reference(reference) else {
                     return Ok(self);
                 };
 
-                let registry = reference.registry();
-                let repository = reference.repository();
                 let r = ImageReference {
-                    image: format!("{registry}/{repository}@{digest}"),
+                    image: reference.to_string(),
                     transport: self.transport.clone(),
                     signature: self.signature.clone(),
                 };
@@ -289,6 +301,38 @@ mod tests {
     use super::*;
 
     #[test]
+    fn test_canonicalize_reference() {
+        // expand this
+        let passthrough = [
+            ("quay.io/example/someimage:latest"),
+            ("quay.io/example/someimage"),
+            ("quay.io/example/someimage@sha256:5db6d8b5f34d3cbdaa1e82ed0152a5ac980076d19317d4269db149cbde057bb2"),
+        ];
+        let mapped = [
+            (
+                "quay.io/example/someimage:latest@sha256:5db6d8b5f34d3cbdaa1e82ed0152a5ac980076d19317d4269db149cbde057bb2",
+                "quay.io/example/someimage@sha256:5db6d8b5f34d3cbdaa1e82ed0152a5ac980076d19317d4269db149cbde057bb2",
+            ),
+            (
+                "localhost/someimage:latest@sha256:5db6d8b5f34d3cbdaa1e82ed0152a5ac980076d19317d4269db149cbde057bb2",
+                "localhost/someimage@sha256:5db6d8b5f34d3cbdaa1e82ed0152a5ac980076d19317d4269db149cbde057bb2",
+            ),
+        ];
+        for &v in passthrough.iter() {
+            let reference = Reference::from_str(v).unwrap();
+            assert!(reference.tag().is_none() || reference.digest().is_none());
+            assert!(canonicalize_reference(reference).is_none());
+        }
+        for &(initial, expected) in mapped.iter() {
+            let reference = Reference::from_str(initial).unwrap();
+            assert!(reference.tag().is_some());
+            assert!(reference.digest().is_some());
+            let canonicalized = canonicalize_reference(reference).unwrap();
+            assert_eq!(canonicalized.to_string(), expected);
+        }
+    }
+
+    #[test]
     fn test_image_reference_canonicalize() {
         let sample_digest =
             "sha256:5db6d8b5f34d3cbdaa1e82ed0152a5ac980076d19317d4269db149cbde057bb2";
@@ -304,11 +348,6 @@ mod tests {
                 format!("quay.io/example/someimage:latest@{}", sample_digest),
                 format!("quay.io/example/someimage@{}", sample_digest),
                 "containers-storage",
-            ),
-            (
-                format!("quay.io/example/someimage:latest@{}", sample_digest),
-                format!("quay.io/example/someimage@{}", sample_digest),
-                "oci",
             ),
             // When only a digest is present, it should be used
             (
@@ -340,7 +379,12 @@ mod tests {
                 format!("localhost/someimage@{sample_digest}"),
                 "registry",
             ),
-            // OCI Archive / Dir should be preserved, and canonicalize should be a no-op
+            // Also for now, we do not canonicalize OCI references
+            (
+                format!("/path/to/dir:latest"),
+                format!("/path/to/dir:latest"),
+                "oci",
+            ),
             (
                 "/tmp/repo".to_string(),
                 "/tmp/repo".to_string(),
@@ -372,6 +416,18 @@ mod tests {
             assert_eq!(canonicalized.transport, transport);
             assert_eq!(canonicalized.signature, None);
         }
+    }
+
+    #[test]
+    fn test_unimplemented_oci_tagged_digested() {
+        let imgref = ImageReference {
+            image: "path/to/image:sometag@sha256:5db6d8b5f34d3cbdaa1e82ed0152a5ac980076d19317d4269db149cbde057bb2".to_string(),
+            transport: "oci".to_string(),
+            signature: None
+        };
+        let canonicalized = imgref.clone().canonicalize().unwrap();
+        // TODO For now this is known to incorrectly pass
+        assert_eq!(imgref, canonicalized);
     }
 
     #[test]
