@@ -41,7 +41,7 @@ fn run() -> Result<()> {
     prompt::get_ssh_keys(ssh_key_file_path)?;
 
     let mut reinstall_podman_command =
-        podman::reinstall_command(&config.bootc_image, ssh_key_file_path);
+        podman::reinstall_command(&config.bootc_image, ssh_key_file_path)?;
 
     println!();
     println!("Going to run command:");
