@@ -6,7 +6,23 @@ use bootc_utils::CommandRunExt;
 use std::process::Command;
 use which::which;
 
-pub(crate) fn reinstall_command(image: &str, ssh_key_file: &str) -> Command {
+fn bootc_has_clean(image: &str) -> Result<bool> {
+    let output = Command::new("podman")
+        .args([
+            "run",
+            "--rm",
+            image,
+            "bootc",
+            "install",
+            "to-existing-root",
+            "--help",
+        ])
+        .output()?;
+    let stdout_str = String::from_utf8_lossy(&output.stdout);
+    Ok(stdout_str.contains("--cleanup"))
+}
+
+pub(crate) fn reinstall_command(image: &str, ssh_key_file: &str) -> Result<Command> {
     let mut podman_command_and_args = [
         // We use podman to run the bootc container. This might change in the future to remove the
         // podman dependency.
@@ -49,12 +65,17 @@ pub(crate) fn reinstall_command(image: &str, ssh_key_file: &str) -> Command {
         // The image is always pulled first, so let's avoid requiring the credentials to be baked
         // in the image for this check.
         "--skip-fetch-check",
-        // Always enable the systemd service to cleanup the previous install after booting into the
-        // bootc system for the first time
-        "--cleanup",
     ]
     .map(String::from)
     .to_vec();
+
+    // Enable the systemd service to cleanup the previous install after booting into the
+    // bootc system for the first time.
+    // This only happens if the bootc version in the image >= 1.1.8 (this is when the cleanup
+    // feature was introduced)
+    if bootc_has_clean(image)? {
+        bootc_command_and_args.push("--cleanup".to_string());
+    }
 
     podman_command_and_args.push("-v".to_string());
     podman_command_and_args.push(format!("{ssh_key_file}:{ROOT_KEY_MOUNT_POINT}"));
@@ -72,7 +93,7 @@ pub(crate) fn reinstall_command(image: &str, ssh_key_file: &str) -> Command {
     let mut command = Command::new(&all_args[0]);
     command.args(&all_args[1..]);
 
-    command
+    Ok(command)
 }
 
 pub(crate) fn pull_image_command(image: &str) -> Command {
