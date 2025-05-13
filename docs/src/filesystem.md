@@ -211,6 +211,8 @@ This can be combined with `etc.transient` as well (below).
 
 More on prepare-root: <https://ostreedev.github.io/ostree/man/ostree-prepare-root.html>
 
+Note that regenerating the initramfs is required when changing this file.
+
 ## Enabling transient etc
 
 The default (per above) is to have `/etc` persist. If however you do
@@ -228,6 +230,8 @@ option in `/usr/lib/ostree/prepare-root.conf`.
 This can be combined with `root.transient` as well (above).
 
 More on prepare-root: <https://ostreedev.github.io/ostree/man/ostree-prepare-root.html>
+
+Note that regenerating the initramfs is required when changing this file.
 
 ## Enabling state overlays
 
