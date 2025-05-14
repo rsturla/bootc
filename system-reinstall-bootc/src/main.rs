@@ -4,7 +4,9 @@ use anyhow::{ensure, Context, Result};
 use bootc_utils::CommandRunExt;
 use rustix::process::getuid;
 
+mod btrfs;
 mod config;
+mod lvm;
 mod podman;
 mod prompt;
 pub(crate) mod users;
@@ -40,6 +42,8 @@ fn run() -> Result<()> {
 
     prompt::get_ssh_keys(ssh_key_file_path)?;
 
+    prompt::mount_warning()?;
+
     let mut reinstall_podman_command =
         podman::reinstall_command(&config.bootc_image, ssh_key_file_path)?;
 
@@ -47,6 +51,9 @@ fn run() -> Result<()> {
     println!("Going to run command:");
     println!();
     println!("{}", reinstall_podman_command.to_string_pretty());
+
+    println!();
+    println!("After reboot, the current root will be available in the /sysroot directory. Existing mounts will not be automatically mounted by the bootc system unless they are defined in the bootc image. Some automatic cleanup of the previous root will be performed.");
 
     prompt::temporary_developer_protection_prompt()?;
 
