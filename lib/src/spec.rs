@@ -156,6 +156,8 @@ pub struct ImageStatus {
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct BootEntryOstree {
+    /// The name of the storage for /etc and /var content
+    pub stateroot: String,
     /// The ostree commit checksum
     pub checksum: String,
     /// The deployment serial

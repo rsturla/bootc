@@ -23,5 +23,6 @@ status:
     ostree:
       checksum: 41af286dc0b172ed2f1ca934fd2278de4a1192302ffa07087cea2682e7d372e3
       deploySerial: 0
+      stateroot: default
   rollback: null
   isContainer: false

@@ -163,6 +163,7 @@ fn boot_entry_from_deployment(
             checksum: deployment.csum().into(),
             // SAFETY: The deployserial is really unsigned
             deploy_serial: deployment.deployserial().try_into().unwrap(),
+            stateroot: deployment.stateroot().into(),
         }),
     };
     Ok(r)
