@@ -75,6 +75,7 @@ CLIPPY_CONFIG = -A clippy::all -D clippy::correctness -D clippy::suspicious -Dun
 validate-rust:
 	cargo fmt -- --check -l
 	cargo test --no-run
+	(cd ostree-ext && cargo check --no-default-features)
 	(cd lib && cargo check --no-default-features)
 	cargo clippy -- $(CLIPPY_CONFIG)
 	env RUSTDOCFLAGS='-D warnings' cargo doc --lib
