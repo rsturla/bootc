@@ -169,6 +169,19 @@ pub(crate) fn selinux_ensure_install_or_setenforce() -> Result<Option<SetEnforce
     Ok(g)
 }
 
+/// A thin wrapper for loading a SELinux policy that maps "policy nonexistent" to None.
+pub(crate) fn new_sepolicy_at(fd: impl AsFd) -> Result<Option<ostree::SePolicy>> {
+    let fd = fd.as_fd();
+    let cancellable = gio::Cancellable::NONE;
+    let sepolicy = ostree::SePolicy::new_at(fd.as_raw_fd(), cancellable)?;
+    let r = if sepolicy.csum().is_none() {
+        None
+    } else {
+        Some(sepolicy)
+    };
+    Ok(r)
+}
+
 #[context("Setting SELinux permissive mode")]
 #[allow(dead_code)]
 pub(crate) fn selinux_set_permissive(permissive: bool) -> Result<()> {

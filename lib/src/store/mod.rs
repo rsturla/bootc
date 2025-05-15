@@ -8,13 +8,13 @@ use cap_std_ext::cap_std::fs::Dir;
 use cap_std_ext::dirext::CapStdExtDirExt;
 use clap::ValueEnum;
 use fn_error_context::context;
-use std::os::fd::AsRawFd;
 
 use ostree_ext::container::OstreeImageReference;
 use ostree_ext::keyfileext::KeyFileExt;
+use ostree_ext::ostree;
 use ostree_ext::sysroot::SysrootLock;
-use ostree_ext::{gio, ostree};
 
+use crate::lsm;
 use crate::spec::ImageStatus;
 use crate::utils::deployment_fd;
 
@@ -94,25 +94,20 @@ impl Storage {
             // this should only happen during cleanup of a broken install
             tracing::trace!("falling back to container root's selinux policy");
             let container_root = Dir::open_ambient_dir("/", cap_std::ambient_authority())?;
-            &ostree::SePolicy::new_at(container_root.as_raw_fd(), gio::Cancellable::NONE)?
+            lsm::new_sepolicy_at(&container_root)?
         } else {
             // load the sepolicy from the booted ostree deployment so the imgstorage can be
             // properly labeled with /var/lib/container/storage labels
             tracing::trace!("loading sepolicy from booted ostree deployment");
             let dep = self.sysroot.booted_deployment().unwrap();
             let dep_fs = deployment_fd(&self.sysroot, &dep)?;
-            &ostree::SePolicy::new_at(dep_fs.as_raw_fd(), gio::Cancellable::NONE)?
-        };
-
-        let sepolicy = if sepolicy.csum().is_none() {
-            None
-        } else {
-            Some(sepolicy)
+            lsm::new_sepolicy_at(&dep_fs)?
         };
 
         tracing::trace!("sepolicy in get_ensure_imgstore: {sepolicy:?}");
 
-        let imgstore = crate::imgstorage::Storage::create(&sysroot_dir, &self.run, sepolicy)?;
+        let imgstore =
+            crate::imgstorage::Storage::create(&sysroot_dir, &self.run, sepolicy.as_ref())?;
         Ok(self.imgstore.get_or_init(|| imgstore))
     }
 

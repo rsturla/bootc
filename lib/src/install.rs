@@ -385,16 +385,14 @@ pub(crate) struct State {
 impl State {
     #[context("Loading SELinux policy")]
     pub(crate) fn load_policy(&self) -> Result<Option<ostree::SePolicy>> {
-        use std::os::fd::AsRawFd;
         if !self.selinux_state.enabled() {
             return Ok(None);
         }
         // We always use the physical container root to bootstrap policy
-        let r = ostree::SePolicy::new_at(self.container_root.as_raw_fd(), gio::Cancellable::NONE)?;
-        let csum = r
-            .csum()
+        let r = lsm::new_sepolicy_at(&self.container_root)?
             .ok_or_else(|| anyhow::anyhow!("SELinux enabled, but no policy found in root"))?;
-        tracing::debug!("Loaded SELinux policy: {csum}");
+        // SAFETY: Policy must have a checksum here
+        tracing::debug!("Loaded SELinux policy: {}", r.csum().unwrap());
         Ok(Some(r))
     }
 
