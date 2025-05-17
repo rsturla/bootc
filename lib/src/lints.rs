@@ -8,6 +8,7 @@
 use std::collections::{BTreeMap, BTreeSet};
 use std::env::consts::ARCH;
 use std::fmt::Write as WriteFmt;
+use std::num::NonZeroUsize;
 use std::ops::ControlFlow;
 use std::os::unix::ffi::OsStrExt;
 use std::path::Path;
@@ -30,6 +31,9 @@ use serde::Serialize;
 const BASEIMAGE_REF: &str = "usr/share/doc/bootc/baseimage/base";
 // https://systemd.io/API_FILE_SYSTEMS/ with /var added for us
 const API_DIRS: &[&str] = &["dev", "proc", "sys", "run", "tmp", "var"];
+
+/// Only output this many items by default
+const DEFAULT_TRUNCATED_OUTPUT: NonZeroUsize = const { NonZeroUsize::new(5).unwrap() };
 
 /// A lint check has failed.
 #[derive(thiserror::Error, Debug)]
@@ -640,7 +644,7 @@ fn check_var_tmpfiles(_root: &Dir) -> LintResult {
     }
     let mut msg = String::new();
     if let Some((samples, rest)) =
-        bootc_utils::iterator_split_nonempty_rest_count(r.tmpfiles.iter(), 5)
+        bootc_utils::collect_until(r.tmpfiles.iter(), DEFAULT_TRUNCATED_OUTPUT)
     {
         msg.push_str("Found content in /var missing systemd tmpfiles.d entries:\n");
         for elt in samples {
@@ -651,10 +655,10 @@ fn check_var_tmpfiles(_root: &Dir) -> LintResult {
         }
     }
     if let Some((samples, rest)) =
-        bootc_utils::iterator_split_nonempty_rest_count(r.unsupported.iter(), 5)
+        bootc_utils::collect_until(r.unsupported.iter(), DEFAULT_TRUNCATED_OUTPUT)
     {
         msg.push_str("Found non-directory/non-symlink files in /var:\n");
-        for elt in samples.map(PathQuotedDisplay::new) {
+        for elt in samples.iter().map(PathQuotedDisplay::new) {
             writeln!(msg, "  {elt}")?;
         }
         if rest > 0 {
@@ -688,7 +692,7 @@ fn check_sysusers(rootfs: &Dir) -> LintResult {
     }
     let mut msg = String::new();
     if let Some((samples, rest)) =
-        bootc_utils::iterator_split_nonempty_rest_count(r.missing_users.iter(), 5)
+        bootc_utils::collect_until(r.missing_users.iter(), DEFAULT_TRUNCATED_OUTPUT)
     {
         msg.push_str("Found /etc/passwd entry without corresponding systemd sysusers.d:\n");
         for elt in samples {
@@ -699,7 +703,7 @@ fn check_sysusers(rootfs: &Dir) -> LintResult {
         }
     }
     if let Some((samples, rest)) =
-        bootc_utils::iterator_split_nonempty_rest_count(r.missing_groups.iter(), 5)
+        bootc_utils::collect_until(r.missing_groups.iter(), DEFAULT_TRUNCATED_OUTPUT)
     {
         msg.push_str("Found /etc/group entry without corresponding systemd sysusers.d:\n");
         for elt in samples {
