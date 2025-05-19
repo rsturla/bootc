@@ -123,7 +123,7 @@ fn new_podman_cmd_in(storage_root: &Dir, run_root: &Dir) -> Result<Command> {
 }
 
 /// Ensure that "podman" is the first thing to touch the global storage
-/// instance. This is a workaround for https://github.com/containers/bootc/pull/1101#issuecomment-2653862974
+/// instance. This is a workaround for https://github.com/bootc-dev/bootc/pull/1101#issuecomment-2653862974
 /// Basically podman has special upgrade logic for when it is the first thing
 /// to initialize the c/storage instance it sets the networking to netavark.
 /// If it's not the first thing, then it assumes an upgrade scenario and we

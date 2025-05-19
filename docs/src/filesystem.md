@@ -32,7 +32,7 @@ The rest of this document describes the state of the system when
 
 bootc uses ostree, which currently [squashes all timestamps to zero](https://ostreedev.github.io/ostree/repo/#content-objects).
 This is now viewed as an implementation bug and will be changed in the future.
-For more information, see [this tracker issue](https://github.com/containers/bootc/issues/20).
+For more information, see [this tracker issue](https://github.com/bootc-dev/bootc/issues/20).
 
 ## Understanding physical vs logical root with `/sysroot`
 

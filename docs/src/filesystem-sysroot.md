@@ -37,7 +37,7 @@ This storage is accessible via a `/usr/lib/bootc/storage` symbolic link which po
 `/sysroot`. (Avoid directly referencing the `/sysroot` target)
 
 At the current time, this storage is *not* used for the base bootable image.
-This [unified storage issue](https://github.com/containers/bootc/issues/20) tracks unification.
+This [unified storage issue](https://github.com/bootc-dev/bootc/issues/20) tracks unification.
 
 ## Expanding the root filesystem
 

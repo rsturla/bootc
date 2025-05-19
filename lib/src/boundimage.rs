@@ -1,6 +1,6 @@
 //! # Implementation of "logically bound" container images
 //!
-//! This module implements the design in <https://github.com/containers/bootc/issues/128>
+//! This module implements the design in <https://github.com/bootc-dev/bootc/issues/128>
 //! for "logically bound" container images. These container images are
 //! pre-pulled (and in the future, pinned) before a new image root
 //! is considered ready.

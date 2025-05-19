@@ -3,7 +3,7 @@
 Experimental features are subject to change or removal. Please
 do provide feedback on them.
 
-Tracking issue: <https://github.com/containers/bootc/issues/690>
+Tracking issue: <https://github.com/bootc-dev/bootc/issues/690>
 
 ## Using `bootc image copy-to-storage`
 

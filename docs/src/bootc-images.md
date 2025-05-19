@@ -13,7 +13,7 @@ requirements.
 
 ## ostree-in-container
 
-With [bootc 1.1.3](https://github.com/containers/bootc/releases/tag/v1.1.3)
+With [bootc 1.1.3](https://github.com/bootc-dev/bootc/releases/tag/v1.1.3)
 or later, it is no longer required to have a `/ostree` directory
 present in the base image.
 
@@ -34,7 +34,7 @@ which is used by the [Fedora base image](https://gitlab.com/fedora/bootc/base-im
 
 ## Standard image content
 
-The bootc project provides a [baseimage](https://github.com/containers/bootc/tree/main/baseimage) reference
+The bootc project provides a [baseimage](https://github.com/bootc-dev/bootc/tree/main/baseimage) reference
 set of configuration files for base images. In particular at
 the current time the content defined by `base` must be used
 (or recreated). There is also suggested integration there with
