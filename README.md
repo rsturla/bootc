@@ -26,6 +26,14 @@ can be upgraded in place seamlessly across any future changes.
 
 See the [project documentation](https://bootc-dev.github.io/bootc/).
 
+## Versioning
+
+Although bootc is not released to crates.io as a library, version
+numbers are expected to follow [semantic
+versioning](https://semver.org/) standards.  This practice began with
+the release of version 1.2.0; versions prior may not adhere strictly
+to semver standards.
+
 ## Adopters (base and end-user images)
 
 The bootc CLI is just a client system; it is not tied to any particular
