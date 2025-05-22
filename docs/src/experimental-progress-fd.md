@@ -1,7 +1,7 @@
 
 # Interactive progress with `--progress-fd`
 
-This is an experimental feature; tracking issue: <https://github.com/containers/bootc/issues/1016>
+This is an experimental feature; tracking issue: <https://github.com/bootc-dev/bootc/issues/1016>
 
 While the `bootc status` tooling allows a client to discover the state
 of the system, during interactive changes such as `bootc upgrade`

@@ -281,7 +281,7 @@ But still: the bootc project will again much more strongly push any scenario tha
 In "unlocked" scenarios, the bootc project will continue to support a "traditional Unix" feeling where persistent changes to `/etc` can be written and maintained.  Similarly, it will continue to be supported to have machine-local kernel arguments.
 There is significant value in migrating "package based" systems to "image based" systems, even if they are still "unsigned" or "unlocked".
 
-The particle model calls for tools like [confext](https://uapi-group.org/specifications/specs/extension_image/#confext-configuration-extension) that use DDIs.  The "backend" of this (managing merged dynamic filesystem trees with overlayfs) and its relationship with systemd units is still relevant, but the bootc approach will again not expose DDIs to the user.  Instead, our approach will take cues from the cloud-native world and use e.g. [Kubernetes ConfigMap](https://github.com/containers/bootc/issues/22) and support signatures on these.
+The particle model calls for tools like [confext](https://uapi-group.org/specifications/specs/extension_image/#confext-configuration-extension) that use DDIs.  The "backend" of this (managing merged dynamic filesystem trees with overlayfs) and its relationship with systemd units is still relevant, but the bootc approach will again not expose DDIs to the user.  Instead, our approach will take cues from the cloud-native world and use e.g. [Kubernetes ConfigMap](https://github.com/bootc-dev/bootc/issues/22) and support signatures on these.
 
 ## More Modularity: Secondary OS installs
 

@@ -60,7 +60,7 @@ pub(crate) fn reinstall_command(image: &str, ssh_key_file: &str) -> Result<Comma
         "to-existing-root",
         // The user already knows they're reinstalling their machine, that's the entire purpose of
         // this binary. Since this is no longer an "arcane" bootc command, we can safely avoid this
-        // timed warning prompt. TODO: Discuss in https://github.com/containers/bootc/discussions/1060
+        // timed warning prompt. TODO: Discuss in https://github.com/bootc-dev/bootc/discussions/1060
         "--acknowledge-destructive",
         // The image is always pulled first, so let's avoid requiring the credentials to be baked
         // in the image for this check.

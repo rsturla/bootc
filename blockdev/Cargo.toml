@@ -5,7 +5,7 @@ publish = false
 edition = "2021"
 license = "MIT OR Apache-2.0"
 name = "bootc-blockdev"
-repository = "https://github.com/containers/bootc"
+repository = "https://github.com/bootc-dev/bootc"
 version = "0.0.0"
 
 [dependencies]

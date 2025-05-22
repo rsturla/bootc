@@ -35,7 +35,7 @@ There is a new [bootc-image-builder](https://github.com/osbuild/bootc-image-buil
 
 Just as `podman` does not depend on a Kubernetes API server, `bootc` will also not depend on one.
 
-However, there are also plans for `bootc` to also understand Kubernetes API types.  See [configmap/secret support](https://github.com/containers/bootc/issues/22) for example.
+However, there are also plans for `bootc` to also understand Kubernetes API types.  See [configmap/secret support](https://github.com/bootc-dev/bootc/issues/22) for example.
 
 Perhaps in the future we may actually support some kind of `Pod` analogue for representing the host state.  Or we may define a [CRD](https://kubernetes.io/docs/concepts/extend-kubernetes/api-extension/custom-resources/) which can be used inside and outside of Kubernetes.
 
@@ -90,17 +90,17 @@ using `bootc` will be more appealing.  bootc also does not
 e.g. drag in dependencies on `libdnf` and the RPM stack.
 
 bootc also has the benefit of starting as a pure Rust project;
-and while it [doesn't have an IPC mechanism today](https://github.com/containers/bootc/issues/4), the surface
+and while it [doesn't have an IPC mechanism today](https://github.com/bootc-dev/bootc/issues/4), the surface
 of such an API will be significantly smaller.
 
-Further, bootc does aim to [include some of the functionality of zincati](https://github.com/containers/bootc/issues/5).
+Further, bootc does aim to [include some of the functionality of zincati](https://github.com/bootc-dev/bootc/issues/5).
 
 But all this said: *It will be supported to use both bootc and rpm-ostree together*; they are not exclusive.
 For example, `bootc status` at least will still function even if packages are layered.
 
 ### Future bootc <-> podman binding
 
-All the above said, it is likely that at some point bootc will switch to [hard binding with podman](https://github.com/containers/bootc/pull/215).
+All the above said, it is likely that at some point bootc will switch to [hard binding with podman](https://github.com/bootc-dev/bootc/pull/215).
 This will reduce the role of ostree, and hence break compatibility with rpm-ostree.
 When such work lands, we will still support at least a "one way" transition from an
 ostree backend.  But once this happens there are no plans to teach rpm-ostree

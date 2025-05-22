@@ -11,7 +11,7 @@ to let us know.
 
 At the moment, the following projects are known to use this crate:
 
-- https://github.com/containers/bootc
+- https://github.com/bootc-dev/bootc
 - https://github.com/coreos/rpm-ostree
 
 The intention of this crate is to be where new high level ostree-related features

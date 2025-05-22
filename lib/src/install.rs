@@ -160,7 +160,7 @@ pub(crate) enum BoundImagesOpt {
     #[clap(hide = true)]
     /// Do not resolve any "logically bound" images at install time.
     Skip,
-    // TODO: Once we implement https://github.com/containers/bootc/issues/863 update this comment
+    // TODO: Once we implement https://github.com/bootc-dev/bootc/issues/863 update this comment
     // to mention source's root container storage being used as lookaside cache
     /// Bound images will be pulled and stored directly in the target's bootc container storage
     Pull,

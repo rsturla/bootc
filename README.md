@@ -34,7 +34,7 @@ start by looking at [ADOPTERS.md](ADOPTERS.md).
 
 ## Community discussion
 
-The [GitHub discussion forum](https://github.com/containers/bootc/discussions) is enabled.
+The [GitHub discussion forum](https://github.com/bootc-dev/bootc/discussions) is enabled.
 
 This project is also tightly related to the previously mentioned Fedora/CentOS bootc project,
 and many developers monitor the relevant discussion forums there. In particular there's a
