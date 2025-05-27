@@ -434,8 +434,11 @@ mod tests {
     const OTHER_SYSUSERS_EXAMPLES: &str = indoc! { r#"
         u user_name  /file/owned/by/user "User Description" /home/dir /path/to/shell
         g group_name /file/owned/by/group
-        #m     user_name  group_name
-        #r     -          lowest-highest
+    "#};
+
+    const OTHER_SYSUSERS_UNHANDLED: &str = indoc! { r#"
+        m     user_name  group_name
+        r     -          42-43
     "#};
 
     fn parse_all(s: &str) -> impl Iterator<Item = SysusersEntry> + use<'_> {
@@ -539,6 +542,18 @@ mod tests {
             }
         );
         assert_eq!(entries.count(), 0);
+
+        let n = OTHER_SYSUSERS_UNHANDLED
+            .lines()
+            .filter(|line| !(line.is_empty() || line.starts_with('#')))
+            .try_fold(Vec::new(), |mut acc, line| {
+                if let Some(v) = SysusersEntry::parse(line)? {
+                    acc.push(v);
+                }
+                anyhow::Ok(acc)
+            })?;
+        assert_eq!(n.len(), 1);
+        assert_eq!(n[0], SysusersEntry::Range { start: 42, end: 43 });
 
         Ok(())
     }
