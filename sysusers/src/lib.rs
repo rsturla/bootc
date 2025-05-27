@@ -134,7 +134,7 @@ impl SysusersEntry {
         let err = || Error::ParseFailure(s.to_owned());
         let (ftype, s) = Self::next_token(s).ok_or_else(err.clone())?;
         let r = match ftype {
-            "u" => {
+            "u" | "u!" => {
                 let (name, s) = Self::next_token_owned(s).ok_or_else(err.clone())?;
                 let (id, s) = Self::next_optional_token(s).ok_or_else(err.clone())?;
                 let (uid, pgid) = id
@@ -353,6 +353,8 @@ mod tests {
         u games 12:100 "games" /usr/games -
         u ftp 14:50 "FTP User" /var/ftp -
         u nobody 65534:65534 "Kernel Overflow User" - -
+        # Newer systemd uses locked references
+        u! systemd-coredump - "systemd Core Dumper"
     "##};
 
     const SYSGROUPS_REF: &str = indoc::indoc! { r##"
@@ -449,7 +451,7 @@ mod tests {
                 shell: None
             }
         );
-        assert_eq!(entries.count(), 9);
+        assert_eq!(entries.count(), 10);
 
         let mut entries = parse_all(OTHER_SYSUSERS_REF);
         assert_eq!(
