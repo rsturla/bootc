@@ -168,7 +168,7 @@ impl SysusersEntry {
         let r = match ftype {
             "u" | "u!" => {
                 let (name, s) = Self::next_token_owned(s).ok_or_else(err.clone())?;
-                let (id, s) = Self::next_optional_token(s).ok_or_else(err.clone())?;
+                let (id, s) = Self::next_optional_token(s).unwrap_or_default();
                 let (uid, pgid) = id
                     .and_then(|v| v.split_once(':'))
                     .or_else(|| id.map(|id| (id, id)))
@@ -180,7 +180,8 @@ impl SysusersEntry {
                     .transpose()
                     .map_err(|_| err())?;
                 let pgid = pgid.map(|id| id.parse()).transpose().map_err(|_| err())?;
-                let (gecos, s) = Self::next_token_owned(s).ok_or_else(err.clone())?;
+                let (gecos, s) = Self::next_token(s).unwrap_or_default();
+                let gecos = gecos.to_owned();
                 let (home, s) = Self::next_optional_token_owned(s).unwrap_or_default();
                 let (shell, _) = Self::next_optional_token_owned(s).unwrap_or_default();
                 SysusersEntry::User {
@@ -194,7 +195,7 @@ impl SysusersEntry {
             }
             "g" => {
                 let (name, s) = Self::next_token_owned(s).ok_or_else(err.clone())?;
-                let (id, _) = Self::next_optional_token(s).ok_or_else(err.clone())?;
+                let (id, _) = Self::next_optional_token(s).unwrap_or_default();
                 let id = id.map(|id| id.parse()).transpose().map_err(|_| err())?;
                 SysusersEntry::Group { name, id }
             }
@@ -434,6 +435,11 @@ mod tests {
     const OTHER_SYSUSERS_EXAMPLES: &str = indoc! { r#"
         u user_name  /file/owned/by/user "User Description" /home/dir /path/to/shell
         g group_name /file/owned/by/group
+        # Note no GECOS field
+        u otheruser -
+        # And finally, no numeric specification at all
+        u justusername
+        g justgroupname
     "#};
 
     const OTHER_SYSUSERS_UNHANDLED: &str = indoc! { r#"
@@ -539,6 +545,35 @@ mod tests {
             SysusersEntry::Group {
                 name: "group_name".into(),
                 id: Some(IdSource::Path("/file/owned/by/group".into()))
+            }
+        );
+        assert_eq!(
+            entries.next().unwrap(),
+            SysusersEntry::User {
+                name: "otheruser".into(),
+                uid: None,
+                pgid: None,
+                gecos: "".into(),
+                home: None,
+                shell: None
+            }
+        );
+        assert_eq!(
+            entries.next().unwrap(),
+            SysusersEntry::User {
+                name: "justusername".into(),
+                uid: None,
+                pgid: None,
+                gecos: "".into(),
+                home: None,
+                shell: None
+            }
+        );
+        assert_eq!(
+            entries.next().unwrap(),
+            SysusersEntry::Group {
+                name: "justgroupname".into(),
+                id: None
             }
         );
         assert_eq!(entries.count(), 0);
