@@ -62,7 +62,7 @@ inside the container image filesystem itself.
 
 Special care and code changes will need to be made to container
 runtimes to support such nesting.  Some more discussion in
-[this tracker issue](https://github.com/containers/bootc/issues/128).
+[this tracker issue](https://github.com/bootc-dev/bootc/issues/128).
 
 ## systemd units
 

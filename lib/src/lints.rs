@@ -419,7 +419,7 @@ fn check_kernel(root: &Dir) -> LintResult {
     lint_ok()
 }
 
-// This one can be lifted in the future, see https://github.com/containers/bootc/issues/975
+// This one can be lifted in the future, see https://github.com/bootc-dev/bootc/issues/975
 #[distributed_slice(LINTS)]
 static LINT_UTF8: Lint = Lint {
     name: "utf8",

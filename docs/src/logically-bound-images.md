@@ -13,7 +13,7 @@ These types of things are commonly not updated outside of the host, and there's 
 
 Another simple way to say this is that logically bound images allow you to reference container images with the same confidence you can with `ExecStart=` in a systemd unit.
 
-The term "logically bound" was created to contrast with [physically bound](https://github.com/containers/bootc/issues/644) images. There are some trade-offs between the two approaches. Some benefits of logically bound images are:
+The term "logically bound" was created to contrast with [physically bound](https://github.com/bootc-dev/bootc/issues/644) images. There are some trade-offs between the two approaches. Some benefits of logically bound images are:
 
 - The bootc system image can be updated without re-downloading the app image bits.
 - The app images can be updated without modifying the bootc system image, this would be especially useful for development work

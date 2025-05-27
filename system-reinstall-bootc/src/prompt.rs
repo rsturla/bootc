@@ -67,7 +67,7 @@ pub(crate) fn reboot() -> Result<()> {
 }
 
 /// Temporary safety mechanism to stop devs from running it on their dev machine. TODO: Discuss
-/// final prompting UX in https://github.com/containers/bootc/discussions/1060
+/// final prompting UX in https://github.com/bootc-dev/bootc/discussions/1060
 pub(crate) fn temporary_developer_protection_prompt() -> Result<()> {
     // Print an empty line so that the warning stands out from the rest of the output
     println!();
