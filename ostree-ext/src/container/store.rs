@@ -1490,12 +1490,22 @@ pub(crate) fn export_to_oci(
             .get(i)
             .and_then(|h| h.comment().as_deref())
             .unwrap_or_default();
-        dest_oci.push_layer(
+
+        let previous_created = srcinfo
+            .configuration
+            .history()
+            .get(i)
+            .and_then(|h| h.created().as_deref())
+            .and_then(bootc_utils::try_deserialize_timestamp)
+            .unwrap_or_default();
+
+        dest_oci.push_layer_full(
             &mut new_manifest,
             &mut new_config,
             layer,
-            previous_description,
             previous_annotations,
+            previous_description,
+            previous_created,
         )
     }
 
