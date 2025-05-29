@@ -301,6 +301,7 @@ name = "bootc-utils"
 version = "0.0.0"
 dependencies = [
  "anyhow",
+ "chrono",
  "rustix 1.0.3",
  "serde",
  "serde_json",
