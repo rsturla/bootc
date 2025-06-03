@@ -9,10 +9,17 @@ mod hostpriv;
 mod install;
 mod runvm;
 mod selinux;
+mod system_reinstall;
 
 #[derive(Debug, Parser)]
 #[clap(name = "bootc-integration-tests", version, rename_all = "kebab-case")]
 pub(crate) enum Opt {
+    SystemReinstall {
+        /// Source container image reference
+        image: String,
+        #[clap(flatten)]
+        testargs: libtest_mimic::Arguments,
+    },
     InstallAlongside {
         /// Source container image reference
         image: String,
@@ -45,6 +52,7 @@ pub(crate) enum Opt {
 fn main() {
     let opt = Opt::parse();
     let r = match opt {
+        Opt::SystemReinstall { image, testargs } => system_reinstall::run(&image, testargs),
         Opt::InstallAlongside { image, testargs } => install::run_alongside(&image, testargs),
         Opt::HostPrivileged { image, testargs } => hostpriv::run_hostpriv(&image, testargs),
         Opt::Container { testargs } => container::run(testargs),
