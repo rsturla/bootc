@@ -221,6 +221,11 @@ host system!  For example, container images, database, user home directory data,
 files in `/etc` are all available after the subsequent reboot in `/sysroot` (which
 is the "physical root").
 
+However, previous mount points or subvolumes will not be automatically
+mounted in the new system, e.g. a btrfs subvolume for /home will not be automatically mounted to
+/sysroot/home. These filesystems will persist and can be handled any way you want like manually
+mounting them or defining the mount points as part of the bootc image.
+
 A special case of this trick is using the `--root-ssh-authorized-keys` flag to inherit
 root's SSH keys (which may have been injected from e.g. cloud instance userdata
 via a tool like `cloud-init`).  To do this, just add
@@ -233,6 +238,8 @@ to the above.
 This is a separate binary included with bootc. It is an opinionated, interactive CLI that wraps `bootc install to-existing-root`. See [bootc install to-existing-root](#Using-bootc-install-to-existing-root) for details on the installation operation.
 
 `system-reinstall-bootc` can be run from an existing Linux system. It will pull the supplied image, prompt to setup SSH keys for accessing the system, and run `bootc install to-existing-root` with all the bind mounts and SSH keys configured.
+
+It will also add the `bootc-destructive-cleanup.service` systemd unit that will run on first boot to cleanup parts of the previous system. The cleanup actions can be configured per distribution by creating a script and packaging it similar to [this one for Fedora](https://github.com/bootc-dev/bootc/blob/main/contrib/scripts/fedora-bootc-destructive-cleanup).
 
 ### Using `bootc install to-filesystem --source-imgref <imgref>`
 
