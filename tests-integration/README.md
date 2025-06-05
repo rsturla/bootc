@@ -22,3 +22,8 @@ full privileges, but is *not* destructive.
 
 This suite is *DESTRUCTIVE*, executing the bootc `install to-existing-root`
 style flow using the host root.  Run it in a transient virtual machine.
+
+### `system-reinstall`
+
+This suite is *DESTRUCTIVE*, executing the `system-reinstall-bootc`
+tests.  Run it in a transient virtual machine.

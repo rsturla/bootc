@@ -16,13 +16,13 @@ const NON_DEFAULT_STATEROOT: &str = "foo";
 
 /// Clear out and delete any ostree roots, leverage bootc hidden wipe-ostree command to get rid of
 /// otherwise hard to delete deployment files
-fn reset_root(sh: &Shell, image: &str) -> Result<()> {
+pub(crate) fn reset_root(sh: &Shell, image: &str) -> Result<()> {
     delete_ostree_deployments(sh, image)?;
     delete_ostree(sh)?;
     Ok(())
 }
 
-fn delete_ostree(sh: &Shell) -> Result<(), anyhow::Error> {
+pub(crate) fn delete_ostree(sh: &Shell) -> Result<(), anyhow::Error> {
     if !Path::new("/ostree/").exists() {
         return Ok(());
     }
@@ -61,7 +61,7 @@ fn find_deployment_root() -> Result<Dir> {
 }
 
 // Hook relatively cheap post-install tests here
-fn generic_post_install_verification() -> Result<()> {
+pub(crate) fn generic_post_install_verification() -> Result<()> {
     assert!(Utf8Path::new("/ostree/repo").try_exists()?);
     assert!(Utf8Path::new("/ostree/bootc/storage/overlay").try_exists()?);
     Ok(())
