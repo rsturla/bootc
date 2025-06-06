@@ -56,12 +56,33 @@ mode=bare-split-xattrs
 /// System calls are expensive.
 const BUF_CAPACITY: usize = 131072;
 
-/// Convert /usr/etc back to /etc
-fn map_path(p: &Utf8Path) -> std::borrow::Cow<Utf8Path> {
-    match p.strip_prefix("./usr/etc") {
-        Ok(r) => Cow::Owned(Utf8Path::new("./etc").join(r)),
+/// Convert `from` to `to`
+fn map_path_inner<'p>(
+    p: &'p Utf8Path,
+    from: &'_ str,
+    to: &'_ str,
+) -> std::borrow::Cow<'p, Utf8Path> {
+    match p.strip_prefix(from) {
+        Ok(r) => {
+            if r.components().count() > 0 {
+                Cow::Owned(Utf8Path::new(to).join(r))
+            } else {
+                Cow::Owned(Utf8PathBuf::from(to))
+            }
+        }
         _ => Cow::Borrowed(p),
     }
+}
+
+/// Convert /usr/etc back to /etc
+fn map_path(p: &Utf8Path) -> std::borrow::Cow<Utf8Path> {
+    map_path_inner(p, "./usr/etc", "./etc")
+}
+
+/// Convert etc to usr/etc
+/// Note: no leading '/' or './'
+fn unmap_path(p: &Utf8Path) -> std::borrow::Cow<Utf8Path> {
+    map_path_inner(p, "etc", "usr/etc")
 }
 
 /// Convert usr/etc back to etc for the tar stream.
