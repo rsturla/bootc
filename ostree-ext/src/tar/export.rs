@@ -820,19 +820,53 @@ mod tests {
 
     #[test]
     fn test_map_path() {
-        assert_eq!(map_path("/".into()), Utf8Path::new("/"));
         assert_eq!(
-            map_path("./usr/etc/blah".into()),
-            Utf8Path::new("./etc/blah")
+            map_path("/".into()).as_os_str(),
+            Utf8Path::new("/").as_os_str()
+        );
+        assert_eq!(
+            map_path("./usr/etc/blah".into()).as_os_str(),
+            Utf8Path::new("./etc/blah").as_os_str()
         );
         for unchanged in ["boot", "usr/bin", "usr/lib/foo"].iter().map(Utf8Path::new) {
-            assert_eq!(unchanged, map_path_v1(unchanged));
+            assert_eq!(unchanged.as_os_str(), map_path_v1(unchanged).as_os_str());
         }
 
-        assert_eq!(Utf8Path::new("etc"), map_path_v1(Utf8Path::new("usr/etc")));
         assert_eq!(
-            Utf8Path::new("etc/foo"),
-            map_path_v1(Utf8Path::new("usr/etc/foo"))
+            Utf8Path::new("etc").as_os_str(),
+            map_path_v1(Utf8Path::new("usr/etc")).as_os_str()
+        );
+        assert_eq!(
+            Utf8Path::new("etc/foo").as_os_str(),
+            map_path_v1(Utf8Path::new("usr/etc/foo")).as_os_str()
+        );
+    }
+
+    #[test]
+    fn test_unmap_path() {
+        assert_eq!(
+            unmap_path("/".into()).as_os_str(),
+            Utf8Path::new("/").as_os_str()
+        );
+        assert_eq!(
+            unmap_path("/etc".into()).as_os_str(),
+            Utf8Path::new("/etc").as_os_str()
+        );
+        assert_eq!(
+            unmap_path("/usr/etc".into()).as_os_str(),
+            Utf8Path::new("/usr/etc").as_os_str()
+        );
+        assert_eq!(
+            unmap_path("usr/etc".into()).as_os_str(),
+            Utf8Path::new("usr/etc").as_os_str()
+        );
+        assert_eq!(
+            unmap_path("etc".into()).as_os_str(),
+            Utf8Path::new("usr/etc").as_os_str()
+        );
+        assert_eq!(
+            unmap_path("etc/blah".into()).as_os_str(),
+            Utf8Path::new("usr/etc/blah").as_os_str()
         );
     }
 
