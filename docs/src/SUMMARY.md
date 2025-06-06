@@ -51,6 +51,7 @@
 - [Filesystem](filesystem.md)
 - [Filesystem: sysroot](filesystem-sysroot.md)
 - [Container storage](filesystem-storage.md)
+- [Bootloader](bootloader.md)
 
 # Experimental features
 
