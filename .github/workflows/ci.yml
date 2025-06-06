@@ -52,11 +52,11 @@ jobs:
           echo 'deb [trusted=yes] https://ftp.debian.org/debian/ testing main' | sudo tee /etc/apt/sources.list.d/testing.list
           sudo apt update
           sudo apt install -y crun/testing podman/testing skopeo/testing
+      - name: Installdeps
+        run: sudo apt update && sudo apt install just
       - uses: actions/checkout@v4
-      - name: Build container (fedora)
-        run: sudo podman build --build-arg=base=quay.io/fedora/fedora-bootc:41 -t localhost/bootc -f hack/Containerfile . 
-      - name: Container integration
-        run: sudo podman run --rm localhost/bootc bootc-integration-tests container
+      - name: Build and run container integration tests
+        run: sudo just run-container-integration
   cargo-deny:
     runs-on: ubuntu-latest
     steps:
@@ -84,15 +84,16 @@ jobs:
       - name: Enable fsverity for /
         run: sudo tune2fs -O verity $(findmnt -vno SOURCE /)
       - name: Install utils
-        run: sudo apt -y install fsverity
+        run: sudo apt -y install fsverity just
       - name: Integration tests
         run: |
           set -xeu
           # Build images to test; TODO investigate doing single container builds
           # via GHA and pushing to a temporary registry to share among workflows?
-          sudo podman build -t localhost/bootc -f hack/Containerfile .
+          sudo just build-integration-test-image
           sudo podman build -t localhost/bootc-fsverity -f ci/Containerfile.install-fsverity
 
+          # TODO move into a container, and then have this tool run other containers
           export CARGO_INCREMENTAL=0  # because we aren't caching the test runner bits
           cargo build --release -p tests-integration
 
@@ -104,9 +105,9 @@ jobs:
           sudo podman run --privileged --pid=host -v /:/run/host -v $(pwd):/src:ro -v /var/tmp:/var/tmp \
             -v /run/dbus:/run/dbus -v /run/systemd:/run/systemd localhost/bootc /src/ostree-ext/ci/priv-integration.sh
           # Nondestructive but privileged tests
-          sudo bootc-integration-tests host-privileged localhost/bootc
+          sudo bootc-integration-tests host-privileged localhost/bootc-integration
           # Install tests
-          sudo bootc-integration-tests install-alongside localhost/bootc
+          sudo bootc-integration-tests install-alongside localhost/bootc-integration
 
           # system-reinstall-bootc tests
           cargo build --release -p system-reinstall-bootc
@@ -116,7 +117,7 @@ jobs:
 
           sudo install -m 0755 target/release/system-reinstall-bootc /usr/bin/system-reinstall-bootc
           # These tests may mutate the system live so we can't run in parallel
-          sudo bootc-integration-tests system-reinstall localhost/bootc --test-threads=1
+          sudo bootc-integration-tests system-reinstall localhost/bootc-integration --test-threads=1
 
           # And the fsverity case
           sudo podman run --privileged --pid=host localhost/bootc-fsverity bootc install to-existing-root --stateroot=other \
