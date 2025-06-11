@@ -548,7 +548,7 @@ fn get_partitions_with_threshold<'a>(
 ///  iterate through prior[i] and make bins according to the name in nevra of pkgs to update
 ///  required packages
 /// else if pkg structure to be changed || prior build not specified
-///  Recompute optimal packaging strcuture (Compute partitions, place packages and optimize build)
+///  Recompute optimal packaging structure (Compute partitions, place packages and optimize build)
 fn basic_packing_with_prior_build<'a>(
     components: &'a [ObjectSourceMetaSized],
     bin_size: NonZeroU32,

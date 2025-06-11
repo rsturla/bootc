@@ -3,7 +3,7 @@
 //! This code only operates on container images that were created via
 //! [`encapsulate`].
 //!
-//! # External depenendency on container-image-proxy
+//! # External dependency on container-image-proxy
 //!
 //! This code requires <https://github.com/cgwalters/container-image-proxy>
 //! installed as a binary in $PATH.
