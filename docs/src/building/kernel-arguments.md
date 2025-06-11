@@ -68,12 +68,31 @@ the `/boot/loader/entries` files, which are in a standardized
 format. 
 
 Typically, `/boot` is mounted read-only to limit
-the set of tools which write to this filesystem.
+the set of tools which write to this filesystem. It is not
+"physically" read-only by default. One approach to edit
+them is to run a tool under a new mount namespace, e.g.
+
+```bash
+unshare -m
+mount -o remount,rw /boot
+# tool to edit /boot/loader/entries
+```
 
 At the current time, `bootc` does not itself offer
 an API to manipulate kernel arguments maintained per-machine.
 
-Other projects such as `rpm-ostree` do, via e.g. `rpm-ostree kargs`.
+Other projects such as `rpm-ostree` do, via e.g. `rpm-ostree kargs`,
+which is just a frontend for editing the bootloader configuration
+files. Note an important detail is that `rpm-ostree kargs` always
+creates a new deployment.
+
+`rpm-ostree kargs` and bootc will interoperate as they both
+use the ostree backend today, and any kernel arguments changed
+via that mechanism will persist across upgrades.
+
+It is currently undefined behavior to remove kernel arguments
+locally that are included in the base image via
+`/usr/lib/bootc/kargs.d`.
 
 ## Injecting default arguments into custom kernels
 
