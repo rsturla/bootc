@@ -93,8 +93,14 @@ fn export_chunks(
         .enumerate()
         .map(|(i, chunk)| -> Result<_> {
             let mut w = ociw.create_layer(Some(opts.compression()))?;
-            ostree_tar::export_chunk(repo, commit, chunk.content, &mut w)
-                .with_context(|| format!("Exporting chunk {i}"))?;
+            ostree_tar::export_chunk(
+                repo,
+                commit,
+                chunk.content,
+                &mut w,
+                opts.tar_create_parent_dirs,
+            )
+            .with_context(|| format!("Exporting chunk {i}"))?;
             let w = w.into_inner()?;
             Ok((w.complete()?, chunk.name, chunk.packages))
         })
@@ -120,7 +126,13 @@ pub(crate) fn export_chunked(
 
     // In V1, the ostree layer comes first
     let mut w = ociw.create_layer(compression)?;
-    ostree_tar::export_final_chunk(repo, commit, chunking.remainder, &mut w)?;
+    ostree_tar::export_final_chunk(
+        repo,
+        commit,
+        chunking.remainder,
+        &mut w,
+        opts.tar_create_parent_dirs,
+    )?;
     let w = w.into_inner()?;
     let ostree_layer = w.complete()?;
 
@@ -418,6 +430,8 @@ pub struct ExportOpts<'m, 'o> {
     pub contentmeta: Option<&'o ObjectMetaSized>,
     /// Sets the created tag in the image manifest.
     pub created: Option<String>,
+    /// Whether to explicitly create all parent directories in the tar layers.
+    pub tar_create_parent_dirs: bool,
 }
 
 impl ExportOpts<'_, '_> {

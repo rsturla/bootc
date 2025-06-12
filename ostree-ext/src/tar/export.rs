@@ -56,12 +56,33 @@ mode=bare-split-xattrs
 /// System calls are expensive.
 const BUF_CAPACITY: usize = 131072;
 
-/// Convert /usr/etc back to /etc
-fn map_path(p: &Utf8Path) -> std::borrow::Cow<Utf8Path> {
-    match p.strip_prefix("./usr/etc") {
-        Ok(r) => Cow::Owned(Utf8Path::new("./etc").join(r)),
+/// Convert `from` to `to`
+fn map_path_inner<'p>(
+    p: &'p Utf8Path,
+    from: &'_ str,
+    to: &'_ str,
+) -> std::borrow::Cow<'p, Utf8Path> {
+    match p.strip_prefix(from) {
+        Ok(r) => {
+            if r.components().count() > 0 {
+                Cow::Owned(Utf8Path::new(to).join(r))
+            } else {
+                Cow::Owned(Utf8PathBuf::from(to))
+            }
+        }
         _ => Cow::Borrowed(p),
     }
+}
+
+/// Convert /usr/etc back to /etc
+fn map_path(p: &Utf8Path) -> std::borrow::Cow<Utf8Path> {
+    map_path_inner(p, "./usr/etc", "./etc")
+}
+
+/// Convert etc to usr/etc
+/// Note: no leading '/' or './'
+fn unmap_path(p: &Utf8Path) -> std::borrow::Cow<Utf8Path> {
+    map_path_inner(p, "etc", "usr/etc")
 }
 
 /// Convert usr/etc back to etc for the tar stream.
@@ -615,6 +636,52 @@ impl<'a, W: std::io::Write> OstreeTarWriter<'a, W> {
             .append_data(&mut header, "var/tmp", std::io::empty())?;
         Ok(())
     }
+
+    fn write_parents_of(
+        &mut self,
+        path: &Utf8Path,
+        cache: &mut HashSet<Utf8PathBuf>,
+    ) -> Result<()> {
+        let Some(parent) = path.parent() else {
+            return Ok(());
+        };
+
+        if parent.components().count() == 0 {
+            return Ok(());
+        }
+
+        if cache.contains(parent) {
+            return Ok(());
+        }
+
+        self.write_parents_of(parent, cache)?;
+
+        let inserted = cache.insert(parent.to_owned());
+        debug_assert!(inserted);
+
+        let root = self
+            .repo
+            .read_commit(&self.commit_checksum, gio::Cancellable::NONE)?
+            .0;
+        let parent_file = root.resolve_relative_path(unmap_path(parent).as_ref());
+        let queryattrs = "unix::*";
+        let queryflags = gio::FileQueryInfoFlags::NOFOLLOW_SYMLINKS;
+        let stat = parent_file.query_info(&queryattrs, queryflags, gio::Cancellable::NONE)?;
+        let uid = stat.attribute_uint32(gio::FILE_ATTRIBUTE_UNIX_UID);
+        let gid = stat.attribute_uint32(gio::FILE_ATTRIBUTE_UNIX_GID);
+        let orig_mode = stat.attribute_uint32(gio::FILE_ATTRIBUTE_UNIX_MODE);
+        let mode = self.filter_mode(orig_mode);
+
+        let mut header = tar::Header::new_gnu();
+        header.set_entry_type(tar::EntryType::Directory);
+        header.set_size(0);
+        header.set_uid(uid as u64);
+        header.set_gid(gid as u64);
+        header.set_mode(mode);
+        self.out
+            .append_data(&mut header, parent, std::io::empty())?;
+        Ok(())
+    }
 }
 
 /// Recursively walk an OSTree commit and generate data into a `[tar::Builder]`
@@ -663,12 +730,17 @@ fn path_for_tar_v1(p: &Utf8Path) -> &Utf8Path {
 fn write_chunk<W: std::io::Write>(
     writer: &mut OstreeTarWriter<W>,
     chunk: chunking::ChunkMapping,
+    create_parent_dirs: bool,
 ) -> Result<()> {
+    let mut cache = std::collections::HashSet::new();
     for (checksum, (_size, paths)) in chunk.into_iter() {
         let (objpath, h) = writer.append_content(checksum.borrow())?;
         for path in paths.iter() {
             let path = path_for_tar_v1(path);
             let h = h.clone();
+            if create_parent_dirs {
+                writer.write_parents_of(&path, &mut cache)?;
+            }
             writer.append_content_hardlink(&objpath, h, path)?;
         }
     }
@@ -681,13 +753,14 @@ pub(crate) fn export_chunk<W: std::io::Write>(
     commit: &str,
     chunk: chunking::ChunkMapping,
     out: &mut tar::Builder<W>,
+    create_parent_dirs: bool,
 ) -> Result<()> {
     // For chunking, we default to format version 1
     #[allow(clippy::needless_update)]
     let opts = ExportOptions;
     let writer = &mut OstreeTarWriter::new(repo, commit, out, opts)?;
     writer.write_repo_structure()?;
-    write_chunk(writer, chunk)
+    write_chunk(writer, chunk, create_parent_dirs)
 }
 
 /// Output the last chunk in a chunking.
@@ -697,6 +770,7 @@ pub(crate) fn export_final_chunk<W: std::io::Write>(
     commit_checksum: &str,
     remainder: chunking::Chunk,
     out: &mut tar::Builder<W>,
+    create_parent_dirs: bool,
 ) -> Result<()> {
     let options = ExportOptions;
     let writer = &mut OstreeTarWriter::new(repo, commit_checksum, out, options)?;
@@ -705,7 +779,7 @@ pub(crate) fn export_final_chunk<W: std::io::Write>(
     writer.structure_only = true;
     writer.write_commit()?;
     writer.structure_only = false;
-    write_chunk(writer, remainder.content)
+    write_chunk(writer, remainder.content, create_parent_dirs)
 }
 
 /// Process an exported tar stream, and update the detached metadata.
@@ -799,19 +873,53 @@ mod tests {
 
     #[test]
     fn test_map_path() {
-        assert_eq!(map_path("/".into()), Utf8Path::new("/"));
         assert_eq!(
-            map_path("./usr/etc/blah".into()),
-            Utf8Path::new("./etc/blah")
+            map_path("/".into()).as_os_str(),
+            Utf8Path::new("/").as_os_str()
+        );
+        assert_eq!(
+            map_path("./usr/etc/blah".into()).as_os_str(),
+            Utf8Path::new("./etc/blah").as_os_str()
         );
         for unchanged in ["boot", "usr/bin", "usr/lib/foo"].iter().map(Utf8Path::new) {
-            assert_eq!(unchanged, map_path_v1(unchanged));
+            assert_eq!(unchanged.as_os_str(), map_path_v1(unchanged).as_os_str());
         }
 
-        assert_eq!(Utf8Path::new("etc"), map_path_v1(Utf8Path::new("usr/etc")));
         assert_eq!(
-            Utf8Path::new("etc/foo"),
-            map_path_v1(Utf8Path::new("usr/etc/foo"))
+            Utf8Path::new("etc").as_os_str(),
+            map_path_v1(Utf8Path::new("usr/etc")).as_os_str()
+        );
+        assert_eq!(
+            Utf8Path::new("etc/foo").as_os_str(),
+            map_path_v1(Utf8Path::new("usr/etc/foo")).as_os_str()
+        );
+    }
+
+    #[test]
+    fn test_unmap_path() {
+        assert_eq!(
+            unmap_path("/".into()).as_os_str(),
+            Utf8Path::new("/").as_os_str()
+        );
+        assert_eq!(
+            unmap_path("/etc".into()).as_os_str(),
+            Utf8Path::new("/etc").as_os_str()
+        );
+        assert_eq!(
+            unmap_path("/usr/etc".into()).as_os_str(),
+            Utf8Path::new("/usr/etc").as_os_str()
+        );
+        assert_eq!(
+            unmap_path("usr/etc".into()).as_os_str(),
+            Utf8Path::new("usr/etc").as_os_str()
+        );
+        assert_eq!(
+            unmap_path("etc".into()).as_os_str(),
+            Utf8Path::new("usr/etc").as_os_str()
+        );
+        assert_eq!(
+            unmap_path("etc/blah".into()).as_os_str(),
+            Utf8Path::new("usr/etc/blah").as_os_str()
         );
     }
 
