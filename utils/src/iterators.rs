@@ -1,6 +1,6 @@
 use std::num::NonZeroUsize;
 
-/// Given an iterator that's clonable, split it into two iterators
+/// Given an iterator that's cloneable, split it into two iterators
 /// at a given maximum number of elements.
 pub fn iterator_split<I>(
     it: I,
