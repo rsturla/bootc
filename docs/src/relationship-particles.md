@@ -211,7 +211,7 @@ Here, we circle back to [composefs](https://github.com/containers/composefs).  O
 think of composefs as effectively a way to manage something like dm-verity, but using
 files.
 
-What bootc builds on top of that is to target a specfic container image rootfs
+What bootc builds on top of that is to target a specific container image rootfs
 that is part of the "physical" root.  Today, this is implemented again using ostree, via the `ostree=` kernel commandline argument.  In the future, it is likely to be a `bootc.image`.
 However, integration with other bootloaders (such as Android Boot) require us to interact
 with externally-specified fixed kernel arguments.  
