@@ -1435,7 +1435,7 @@ pub(crate) fn export_to_oci(
     new_config.history_mut().clear();
     new_config.rootfs_mut().diff_ids_mut().clear();
 
-    let mut dest_oci = ocidir::OciDir::ensure(dest_oci)?;
+    let mut dest_oci = ocidir::OciDir::ensure(dest_oci.try_clone()?)?;
 
     let opts = ExportOpts {
         skip_compression: opts.skip_compression,

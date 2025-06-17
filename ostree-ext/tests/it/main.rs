@@ -689,12 +689,12 @@ async fn test_export_as_container_nonderived() -> Result<()> {
         name: format!("{}:exported-test", fixture.path.join(exported_ocidir_name)),
     };
     fixture.dir.create_dir(exported_ocidir_name)?;
-    let ocidir = ocidir::OciDir::ensure(&fixture.dir.open_dir(exported_ocidir_name)?)?;
+    let ocidir = ocidir::OciDir::ensure(fixture.dir.open_dir(exported_ocidir_name)?)?;
     let exported = store::export(fixture.destrepo(), &src_imgref, &dest, None)
         .await
         .unwrap();
 
-    let idx = ocidir.read_index()?.unwrap();
+    let idx = ocidir.read_index()?;
     let desc = idx.manifests().first().unwrap();
     let new_manifest: oci_image::ImageManifest = ocidir.read_json_blob(desc).unwrap();
 
@@ -740,12 +740,12 @@ async fn test_export_as_container_derived() -> Result<()> {
         name: format!("{}:exported-test", fixture.path.join(exported_ocidir_name)),
     };
     fixture.dir.create_dir(exported_ocidir_name)?;
-    let ocidir = ocidir::OciDir::ensure(&fixture.dir.open_dir(exported_ocidir_name)?)?;
+    let ocidir = ocidir::OciDir::ensure(fixture.dir.open_dir(exported_ocidir_name)?)?;
     let exported = store::export(fixture.destrepo(), &derived_imgref, &dest, None)
         .await
         .unwrap();
 
-    let idx = ocidir.read_index()?.unwrap();
+    let idx = ocidir.read_index()?;
     let desc = idx.manifests().first().unwrap();
     let new_manifest: oci_image::ImageManifest = ocidir.read_json_blob(desc).unwrap();
 
@@ -821,8 +821,8 @@ fn validate_chunked_structure(oci_path: &Utf8Path) -> Result<()> {
     use tar::EntryType::Link;
 
     let d = Dir::open_ambient_dir(oci_path, cap_std::ambient_authority())?;
-    let d = ocidir::OciDir::open(&d)?;
-    let idx = d.read_index()?.unwrap();
+    let d = ocidir::OciDir::open(d)?;
+    let idx = d.read_index()?;
     let desc = idx.manifests().first().unwrap();
     let manifest: oci_image::ImageManifest = d.read_json_blob(desc).unwrap();
 
@@ -1335,7 +1335,7 @@ async fn test_non_ostree() -> Result<()> {
     let imp = fixture.must_import(&imgref).await?;
     if imp.manifest_digest != src_digest {
         let src_manifest: oci_image::ImageManifest = {
-            let idx = fixture.src_oci.read_index()?.unwrap();
+            let idx = fixture.src_oci.read_index()?;
             let manifest = idx
                 .manifests()
                 .iter()

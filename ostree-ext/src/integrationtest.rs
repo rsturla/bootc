@@ -67,11 +67,9 @@ where
 {
     let src = src.as_ref();
     let src = Dir::open_ambient_dir(src, cap_std::ambient_authority())?;
-    let src = ocidir::OciDir::open(&src)?;
+    let src = ocidir::OciDir::open(src)?;
 
-    let idx = src
-        .read_index()?
-        .ok_or(anyhow!("Reading image index from source"))?;
+    let idx = src.read_index()?;
     let manifest_descriptor = idx
         .manifests()
         .first()

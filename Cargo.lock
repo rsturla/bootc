@@ -355,6 +355,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "canon-json"
+version = "0.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b43fa751f9635eb2183e5e7f3d29489507e0b42454bb69a992fcff7e1b310e29"
+dependencies = [
+ "serde",
+ "serde_derive",
+ "serde_json",
+ "thiserror 2.0.12",
+]
+
+[[package]]
 name = "cap-primitives"
 version = "3.4.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -532,12 +544,12 @@ dependencies = [
  "anyhow",
  "async-compression",
  "clap",
- "containers-image-proxy",
+ "containers-image-proxy 0.7.0",
  "env_logger 0.11.6",
  "hex",
  "indicatif",
  "log",
- "oci-spec",
+ "oci-spec 0.7.1",
  "regex-automata 0.4.9",
  "rustix 1.0.3",
  "serde",
@@ -566,6 +578,26 @@ dependencies = [
 ]
 
 [[package]]
+name = "const_format"
+version = "0.2.34"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "126f97965c8ad46d6d9163268ff28432e8f6a1196a55578867832e3049df63dd"
+dependencies = [
+ "const_format_proc_macros",
+]
+
+[[package]]
+name = "const_format_proc_macros"
+version = "0.2.34"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "1d57c2eccfb16dbac1f4e61e206105db5820c9d26c3c472bc17c774259ef7744"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "unicode-xid",
+]
+
+[[package]]
 name = "containers-image-proxy"
 version = "0.7.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -574,8 +606,27 @@ dependencies = [
  "cap-std-ext",
  "fn-error-context",
  "futures-util",
- "oci-spec",
+ "oci-spec 0.7.1",
  "rustix 0.38.44",
+ "semver",
+ "serde",
+ "serde_json",
+ "thiserror 1.0.69",
+ "tokio",
+ "tracing",
+]
+
+[[package]]
+name = "containers-image-proxy"
+version = "0.8.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9953374bea7d415048415d1f871ba974897209ba0c14d3c665d4a41bdc15628d"
+dependencies = [
+ "cap-std-ext",
+ "futures-util",
+ "itertools",
+ "oci-spec 0.8.1",
+ "rustix 1.0.3",
  "semver",
  "serde",
  "serde_json",
@@ -1294,6 +1345,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7943c866cc5cd64cbc25b2e01621d07fa8eb2a1a23160ee81ce38704e97b8ecf"
 
 [[package]]
+name = "itertools"
+version = "0.14.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "2b192c782037fadd9cfa75548310488aabdbf3d2da73885b31bd0abd03351285"
+dependencies = [
+ "either",
+]
+
+[[package]]
 name = "itoa"
 version = "1.0.14"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1612,40 +1672,46 @@ dependencies = [
  "regex",
  "serde",
  "serde_json",
- "strum",
- "strum_macros",
+ "strum 0.26.3",
+ "strum_macros 0.26.4",
+ "thiserror 2.0.12",
+]
+
+[[package]]
+name = "oci-spec"
+version = "0.8.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "57e9beda9d92fac7bf4904c34c83340ef1024159faee67179a04e0277523da33"
+dependencies = [
+ "const_format",
+ "derive_builder",
+ "getset",
+ "regex",
+ "serde",
+ "serde_json",
+ "strum 0.27.1",
+ "strum_macros 0.27.1",
  "thiserror 2.0.12",
 ]
 
 [[package]]
 name = "ocidir"
-version = "0.3.1"
+version = "0.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "296a7c4945df5df933582eefaad6d90d16f3e7162f42e6837985bce745d3b5af"
+checksum = "2ca884bf1922890f5fb3c48bbe92b450781ddb4754a4efd6b2dd1667730f9dab"
 dependencies = [
  "camino",
+ "canon-json",
  "cap-std-ext",
  "chrono",
  "flate2",
  "hex",
- "oci-spec",
- "olpc-cjson",
+ "oci-spec 0.8.1",
  "openssl",
  "serde",
  "serde_json",
  "tar",
- "thiserror 1.0.69",
-]
-
-[[package]]
-name = "olpc-cjson"
-version = "0.1.4"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "696183c9b5fe81a7715d074fd632e8bd46f4ccc0231a3ed7fc580a80de5f7083"
-dependencies = [
- "serde",
- "serde_json",
- "unicode-normalization",
+ "thiserror 2.0.12",
 ]
 
 [[package]]
@@ -1735,7 +1801,7 @@ dependencies = [
  "clap_mangen",
  "comfy-table",
  "composefs",
- "containers-image-proxy",
+ "containers-image-proxy 0.8.0",
  "flate2",
  "fn-error-context",
  "futures-util",
@@ -1748,7 +1814,6 @@ dependencies = [
  "libc",
  "libsystemd",
  "ocidir",
- "olpc-cjson",
  "openssl",
  "ostree",
  "ostree-ext",
@@ -2354,10 +2419,29 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "8fec0f0aef304996cf250b31b5a10dee7980c85da9d759361292b8bca5a18f06"
 
 [[package]]
+name = "strum"
+version = "0.27.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f64def088c51c9510a8579e3c5d67c65349dcf755e5479ad3d010aa6454e2c32"
+
+[[package]]
 name = "strum_macros"
 version = "0.26.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "4c6bee85a5a24955dc440386795aa378cd9cf82acd5f764469152d2270e581be"
+dependencies = [
+ "heck",
+ "proc-macro2",
+ "quote",
+ "rustversion",
+ "syn 2.0.87",
+]
+
+[[package]]
+name = "strum_macros"
+version = "0.27.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c77a8c5abcaf0f9ce05d62342b7d298c346515365c36b673df4ebe3ced01fde8"
 dependencies = [
  "heck",
  "proc-macro2",
@@ -2471,7 +2555,7 @@ dependencies = [
  "fn-error-context",
  "indoc",
  "libtest-mimic",
- "oci-spec",
+ "oci-spec 0.8.1",
  "rexpect",
  "rustix 1.0.3",
  "serde",
@@ -2535,21 +2619,6 @@ name = "tini"
 version = "1.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e004df4c5f0805eb5f55883204a514cfa43a6d924741be29e871753a53d5565a"
-
-[[package]]
-name = "tinyvec"
-version = "1.8.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "445e881f4f6d382d5f27c034e25eb92edd7c784ceab92a0937db7f2e9471b938"
-dependencies = [
- "tinyvec_macros",
-]
-
-[[package]]
-name = "tinyvec_macros"
-version = "0.1.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1f3ccbac311fea05f86f61904b462b55fb3df8837a366dfc601a0161d0532f20"
 
 [[package]]
 name = "tokio"
@@ -2718,15 +2787,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e91b56cd4cadaeb79bbf1a5645f6b4f8dc5bde8834ad5894a8db35fda9efa1fe"
 
 [[package]]
-name = "unicode-normalization"
-version = "0.1.24"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5033c97c4262335cded6d6fc3e5c18ab755e1a3dc96376350f3d8e9f009ad956"
-dependencies = [
- "tinyvec",
-]
-
-[[package]]
 name = "unicode-segmentation"
 version = "1.12.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2743,6 +2803,12 @@ name = "unicode-width"
 version = "0.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "1fc81956842c57dac11422a97c3b8195a1ff727f06e85c84ed2e8aa277c9a0fd"
+
+[[package]]
+name = "unicode-xid"
+version = "0.2.6"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ebc1c04c71510c7f702b52b7c350734c9ff1295c464a03335b00bb84fc54f853"
 
 [[package]]
 name = "unsafe-libyaml"

@@ -973,7 +973,7 @@ impl NonOstreeFixture {
         // Create the src/ directory
         dir.create_dir_all(Self::SRCOCI)?;
         let src_oci = dir.open_dir(Self::SRCOCI)?;
-        let src_oci = ocidir::OciDir::ensure(&src_oci)?;
+        let src_oci = ocidir::OciDir::ensure(src_oci)?;
 
         dir.create_dir("dest")?;
         let destrepo = ostree::Repo::create_at_dir(
@@ -1004,7 +1004,7 @@ impl NonOstreeFixture {
         };
 
         let mut config = ImageConfigurationBuilder::default().build().unwrap();
-        let mut manifest = ocidir::new_empty_manifest().build().unwrap();
+        let mut manifest = self.src_oci.new_empty_manifest()?.build().unwrap();
 
         let bw = self.src_oci.create_gzip_layer(None)?;
         let mut bw = tar::Builder::new(bw);
@@ -1034,7 +1034,7 @@ impl NonOstreeFixture {
         manifest.set_config(config);
         self.src_oci
             .replace_with_single_manifest(manifest, oci_image::Platform::default())?;
-        let idx = self.src_oci.read_index()?.unwrap();
+        let idx = self.src_oci.read_index()?;
         let descriptor = idx.manifests().first().unwrap();
 
         Ok((imgref, descriptor.digest().to_owned()))
