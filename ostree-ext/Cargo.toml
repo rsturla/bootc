@@ -9,10 +9,7 @@ repository = "https://github.com/ostreedev/ostree-rs-ext"
 version = "0.15.3"
 
 [dependencies]
-# Note that we re-export the oci-spec types
-# that are exported by this crate, so when bumping
-# semver here you must also bump our semver.
-containers-image-proxy = "0.7.0"
+containers-image-proxy = "0.8.0"
 # We re-export this library too.
 ostree = { features = ["v2025_2"], version = "0.20" }
 
@@ -22,7 +19,6 @@ bootc-utils = { path = "../utils" }
 camino = { workspace = true, features = ["serde1"] }
 composefs = { git = "https://github.com/containers/composefs-rs", rev = "821eeae93e48f1ee381c49b8cd4d22fda92d27a2" }
 chrono = { workspace = true }
-olpc-cjson = "0.1.1"
 clap = { workspace = true, features = ["derive","cargo"] }
 clap_mangen = { workspace = true, optional = true }
 comfy-table = "7.1.1"
@@ -37,7 +33,7 @@ indicatif = { workspace = true }
 libc = { workspace = true }
 libsystemd = "0.7.0"
 openssl = { workspace = true }
-ocidir = "0.3.0"
+ocidir = "0.4.0"
 pin-project = "1.0"
 regex = "1.5.4"
 rustix = { workspace = true, features = ["fs", "process"] }

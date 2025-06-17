@@ -236,7 +236,7 @@ fn build_oci(
         &mut labels,
     )?;
 
-    let mut manifest = ocidir::new_empty_manifest().build().unwrap();
+    let mut manifest = writer.new_empty_manifest()?.build().unwrap();
 
     let chunking = opts
         .contentmeta
@@ -355,7 +355,7 @@ async fn build_impl(
         }
         let ocidir = Dir::open_ambient_dir(path, cap_std::ambient_authority())
             .with_context(|| format!("Opening {path}"))?;
-        let mut ocidir = OciDir::ensure(&ocidir).context("Opening OCI")?;
+        let mut ocidir = OciDir::ensure(ocidir).context("Opening OCI")?;
         build_oci(repo, ostree_ref, &mut ocidir, tag, config, opts)?;
         None
     } else {
@@ -363,7 +363,7 @@ async fn build_impl(
             let vartmp = Dir::open_ambient_dir("/var/tmp", cap_std::ambient_authority())?;
             cap_std_ext::cap_tempfile::tempdir_in(&vartmp)?
         };
-        let mut ocidir = OciDir::ensure(&tempdir)?;
+        let mut ocidir = OciDir::ensure(tempdir.try_clone()?)?;
 
         // Minor TODO: refactor to avoid clone
         let authfile = opts.authfile.clone();

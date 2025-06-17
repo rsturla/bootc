@@ -41,12 +41,10 @@ pub async fn update_detached_metadata(
         // Open the temporary OCI directory.
         let tempsrc = Dir::open_ambient_dir(tempsrc_ref_path, cap_std::ambient_authority())
             .context("Opening src")?;
-        let tempsrc = ocidir::OciDir::open(&tempsrc)?;
+        let tempsrc = ocidir::OciDir::open(tempsrc)?;
 
         // Load the manifest, platform, and config
-        let idx = tempsrc
-            .read_index()?
-            .ok_or(anyhow!("Reading image index from source"))?;
+        let idx = tempsrc.read_index()?;
         let manifest_descriptor = idx
             .manifests()
             .first()
