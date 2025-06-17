@@ -737,6 +737,13 @@ pub(crate) async fn stage(
     })
     .await;
 
+    // Unconditionally create or update /run/reboot-required to signal a reboot is needed.
+    // This is monitored by kured (Kubernetes Reboot Daemon).
+    let run_dir = Dir::open_ambient_dir("/run", cap_std::ambient_authority())?;
+    run_dir
+        .atomic_write("reboot-required", b"")
+        .context("Creating /run/reboot-required")?;
+
     Ok(())
 }
 
