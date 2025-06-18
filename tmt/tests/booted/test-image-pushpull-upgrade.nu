@@ -65,6 +65,10 @@ RUN echo test content > /usr/share/blah.txt
     let progress = open --raw $progress_json | from json -o
     sanity_check_switch_progress_json $progress
 
+    # Check that /run/reboot-required exists and is a zero-byte file
+    let rr_meta = (ls /run/reboot-required | first)
+    assert equal $rr_meta.size 0b
+
     # Also test that the mtime changes on modification
     let new_root_mtime = ls -Dl /ostree/bootc | get modified
     assert ($new_root_mtime > $orig_root_mtime)
