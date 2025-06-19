@@ -9,6 +9,7 @@ use gvariant::aligned_bytes::TryAsAligned;
 use gvariant::{Marker, Structure};
 use oci_image::ImageManifest;
 use oci_spec::image as oci_image;
+use ocidir::oci_spec::distribution::Reference;
 use ocidir::oci_spec::image::{Arch, DigestAlgorithm};
 use ostree_ext::chunking::ObjectMetaSized;
 use ostree_ext::container::{store, ManifestDiff};
@@ -709,6 +710,59 @@ async fn test_export_as_container_nonderived() -> Result<()> {
     let reimported = fixture.must_import(&dest).await?;
     let reimport_ls = fixture::ostree_ls(fixture.destrepo(), &reimported.merge_commit).unwrap();
     similar_asserts::assert_eq!(initimport_ls, reimport_ls);
+    Ok(())
+}
+
+/// Verify that fetches of a digested pull spec don't do networking
+#[tokio::test]
+async fn test_no_fetch_digested() -> Result<()> {
+    if !check_skopeo() {
+        return Ok(());
+    }
+    let fixture = Fixture::new_v1()?;
+    let (src_imgref_oci, expected_digest) = fixture.export_container().await.unwrap();
+    let mut imp = store::ImageImporter::new(
+        fixture.destrepo(),
+        &OstreeImageReference {
+            sigverify: SignatureSource::ContainerPolicyAllowInsecure,
+            imgref: src_imgref_oci.clone(),
+        },
+        Default::default(),
+    )
+    .await
+    .unwrap();
+    // Because oci: transport doesn't allow digested pull specs, we pull from OCI, but set the target
+    // to a registry.
+    let target_imgref_name = Reference::with_digest(
+        "quay.io/exampleos".into(),
+        "example".into(),
+        expected_digest.to_string(),
+    );
+    let target_imgref = ImageReference {
+        transport: Transport::Registry,
+        name: target_imgref_name.to_string(),
+    };
+    let target_imgref = OstreeImageReference {
+        sigverify: SignatureSource::ContainerPolicyAllowInsecure,
+        imgref: target_imgref,
+    };
+    imp.set_target(&target_imgref);
+    let prep = match imp.prepare().await? {
+        store::PrepareResult::AlreadyPresent(_) => unreachable!(),
+        store::PrepareResult::Ready(prep) => prep,
+    };
+    let r = imp.import(prep).await.unwrap();
+    assert_eq!(r.manifest_digest, expected_digest);
+    let mut imp = store::ImageImporter::new(fixture.destrepo(), &target_imgref, Default::default())
+        .await
+        .unwrap();
+    // And the key test, we shouldn't reach out to the registry here
+    imp.set_offline();
+    match imp.prepare().await.context("Init prep derived").unwrap() {
+        store::PrepareResult::AlreadyPresent(_) => {}
+        store::PrepareResult::Ready(_) => panic!("Should have image already"),
+    };
+
     Ok(())
 }
 

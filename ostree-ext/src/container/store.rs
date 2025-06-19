@@ -26,6 +26,7 @@ use glib::prelude::*;
 use oci_spec::image::{
     self as oci_image, Arch, Descriptor, Digest, History, ImageConfiguration, ImageManifest,
 };
+use ocidir::oci_spec::distribution::Reference;
 use ostree::prelude::{Cast, FileEnumeratorExt, FileExt, ToVariant};
 use ostree::{gio, glib};
 use std::collections::{BTreeMap, BTreeSet, HashMap};
@@ -181,6 +182,8 @@ pub struct ImageImporter {
     disable_gc: bool, // If true, don't prune unused image layers
     /// If true, require the image has the bootable flag
     require_bootable: bool,
+    /// Do not attempt to contact the network
+    offline: bool,
     /// If true, we have ostree v2024.3 or newer.
     ostree_v2024_3: bool,
 
@@ -519,6 +522,7 @@ impl ImageImporter {
             ostree_v2024_3: ostree::check_version(2024, 3),
             disable_gc: false,
             require_bootable: false,
+            offline: false,
             imgref: imgref.clone(),
             layer_progress: None,
             layer_byte_progress: None,
@@ -535,6 +539,11 @@ impl ImageImporter {
     /// but in such a way that it does not need to be manually removed later.
     pub fn set_no_imgref(&mut self) {
         self.no_imgref = true;
+    }
+
+    /// Do not attempt to contact the network
+    pub fn set_offline(&mut self) {
+        self.offline = true;
     }
 
     /// Require that the image has the bootable metadata field
@@ -682,7 +691,34 @@ impl ImageImporter {
             _ => {}
         }
 
+        // Check if we have an image already pulled
         let previous_state = try_query_image(&self.repo, &self.imgref.imgref)?;
+
+        // Parse the target reference to see if it's a digested pull
+        let target_reference = self.imgref.imgref.name.parse::<Reference>().ok();
+        let previous_state = if let Some(target_digest) = target_reference
+            .as_ref()
+            .and_then(|v| v.digest())
+            .map(Digest::from_str)
+            .transpose()?
+        {
+            if let Some(previous_state) = previous_state {
+                // A digested pull spec, and our existing state matches.
+                if previous_state.manifest_digest == target_digest {
+                    tracing::debug!("Digest-based pullspec {:?} already present", self.imgref);
+                    return Ok(PrepareResult::AlreadyPresent(previous_state));
+                }
+                Some(previous_state)
+            } else {
+                None
+            }
+        } else {
+            previous_state
+        };
+
+        if self.offline {
+            anyhow::bail!("Manifest fetch required in offline mode");
+        }
 
         let proxy_img = self
             .proxy
