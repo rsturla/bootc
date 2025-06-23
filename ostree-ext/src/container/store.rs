@@ -682,6 +682,8 @@ impl ImageImporter {
             _ => {}
         }
 
+        let previous_state = try_query_image(&self.repo, &self.imgref.imgref)?;
+
         let proxy_img = self
             .proxy
             .open_image(&self.imgref.imgref.to_string())
@@ -693,22 +695,21 @@ impl ImageImporter {
 
         // Query for previous stored state
 
-        let (previous_state, previous_imageid) =
-            if let Some(previous_state) = try_query_image(&self.repo, &self.imgref.imgref)? {
-                // If the manifest digests match, we're done.
-                if previous_state.manifest_digest == manifest_digest {
-                    return Ok(PrepareResult::AlreadyPresent(previous_state));
-                }
-                // Failing that, if they have the same imageID, we're also done.
-                let previous_imageid = previous_state.manifest.config().digest();
-                if previous_imageid == new_imageid {
-                    return Ok(PrepareResult::AlreadyPresent(previous_state));
-                }
-                let previous_imageid = previous_imageid.to_string();
-                (Some(previous_state), Some(previous_imageid))
-            } else {
-                (None, None)
-            };
+        let (previous_state, previous_imageid) = if let Some(previous_state) = previous_state {
+            // If the manifest digests match, we're done.
+            if previous_state.manifest_digest == manifest_digest {
+                return Ok(PrepareResult::AlreadyPresent(previous_state));
+            }
+            // Failing that, if they have the same imageID, we're also done.
+            let previous_imageid = previous_state.manifest.config().digest();
+            if previous_imageid == new_imageid {
+                return Ok(PrepareResult::AlreadyPresent(previous_state));
+            }
+            let previous_imageid = previous_imageid.to_string();
+            (Some(previous_state), Some(previous_imageid))
+        } else {
+            (None, None)
+        };
 
         let config = self.proxy.fetch_config(&proxy_img).await?;
 
