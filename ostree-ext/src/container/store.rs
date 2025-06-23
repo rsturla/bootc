@@ -183,7 +183,6 @@ pub struct ImageImporter {
     require_bootable: bool,
     /// If true, we have ostree v2024.3 or newer.
     ostree_v2024_3: bool,
-    pub(crate) proxy_img: OpenedImage,
 
     layer_progress: Option<Sender<ImportProgress>>,
     layer_byte_progress: Option<tokio::sync::watch::Sender<Option<LayerProgress>>>,
@@ -241,6 +240,8 @@ pub struct PreparedImport {
     pub layers: Vec<ManifestLayerState>,
     /// OSTree remote signature verification text, if enabled.
     pub verify_text: Option<String>,
+    /// Our open image reference
+    proxy_img: OpenedImage,
 }
 
 impl PreparedImport {
@@ -509,12 +510,10 @@ impl ImageImporter {
             &format!("Fetching {}", imgref),
         );
 
-        let proxy_img = proxy.open_image(&imgref.imgref.to_string()).await?;
         let repo = repo.clone();
         Ok(ImageImporter {
             repo,
             proxy,
-            proxy_img,
             target_imgref: None,
             no_imgref: false,
             ostree_v2024_3: ostree::check_version(2024, 3),
@@ -619,6 +618,7 @@ impl ImageImporter {
         config: ImageConfiguration,
         previous_state: Option<Box<LayeredImageState>>,
         previous_imageid: Option<String>,
+        proxy_img: OpenedImage,
     ) -> Result<Box<PreparedImport>> {
         let config_labels = super::labels_of(&config);
         if self.require_bootable {
@@ -662,6 +662,7 @@ impl ImageImporter {
             ostree_commit_layer: commit_layer,
             layers: remaining_layers,
             verify_text: None,
+            proxy_img,
         };
         Ok(Box::new(imp))
     }
@@ -681,7 +682,12 @@ impl ImageImporter {
             _ => {}
         }
 
-        let (manifest_digest, manifest) = self.proxy.fetch_manifest(&self.proxy_img).await?;
+        let proxy_img = self
+            .proxy
+            .open_image(&self.imgref.imgref.to_string())
+            .await?;
+
+        let (manifest_digest, manifest) = self.proxy.fetch_manifest(&proxy_img).await?;
         let manifest_digest = Digest::from_str(&manifest_digest)?;
         let new_imageid = manifest.config().digest();
 
@@ -704,7 +710,7 @@ impl ImageImporter {
                 (None, None)
             };
 
-        let config = self.proxy.fetch_config(&self.proxy_img).await?;
+        let config = self.proxy.fetch_config(&proxy_img).await?;
 
         // If there is a currently fetched image, cache the new pending manifest+config
         // as detached commit metadata, so that future fetches can query it offline.
@@ -724,6 +730,7 @@ impl ImageImporter {
             config,
             previous_state,
             previous_imageid,
+            proxy_img,
         )?;
         Ok(PrepareResult::Ready(imp))
     }
@@ -756,7 +763,7 @@ impl ImageImporter {
             }
             return Ok(());
         };
-        let des_layers = self.proxy.get_layer_info(&self.proxy_img).await?;
+        let des_layers = self.proxy.get_layer_info(&import.proxy_img).await?;
         for layer in import.ostree_layers.iter_mut() {
             if layer.commit.is_some() {
                 continue;
@@ -767,7 +774,7 @@ impl ImageImporter {
             }
             let (blob, driver, media_type) = fetch_layer(
                 &self.proxy,
-                &self.proxy_img,
+                &import.proxy_img,
                 &import.manifest,
                 &layer.layer,
                 self.layer_byte_progress.as_ref(),
@@ -814,7 +821,7 @@ impl ImageImporter {
             }
             let (blob, driver, media_type) = fetch_layer(
                 &self.proxy,
-                &self.proxy_img,
+                &import.proxy_img,
                 &import.manifest,
                 &commit_layer.layer,
                 self.layer_byte_progress.as_ref(),
@@ -874,7 +881,7 @@ impl ImageImporter {
         self.unencapsulate_base(&mut prep, true, false).await?;
         // TODO change the imageproxy API to ensure this happens automatically when
         // the image reference is dropped
-        self.proxy.close_image(&self.proxy_img).await?;
+        self.proxy.close_image(&prep.proxy_img).await?;
         // SAFETY: We know we have a commit
         let ostree_commit = prep.ostree_commit_layer.unwrap().commit.unwrap();
         let image_digest = prep.manifest_digest;
@@ -899,9 +906,8 @@ impl ImageImporter {
         // First download all layers for the base image (if necessary) - we need the SELinux policy
         // there to label all following layers.
         self.unencapsulate_base(&mut import, false, true).await?;
-        let des_layers = self.proxy.get_layer_info(&self.proxy_img).await?;
+        let des_layers = self.proxy.get_layer_info(&import.proxy_img).await?;
         let proxy = self.proxy;
-        let proxy_img = self.proxy_img;
         let target_imgref = self.target_imgref.as_ref().unwrap_or(&self.imgref);
         let base_commit = import
             .ostree_commit_layer
@@ -935,7 +941,7 @@ impl ImageImporter {
                 }
                 let (blob, driver, media_type) = super::unencapsulate::fetch_layer(
                     &proxy,
-                    &proxy_img,
+                    &import.proxy_img,
                     &import.manifest,
                     &layer.layer,
                     self.layer_byte_progress.as_ref(),
@@ -989,7 +995,7 @@ impl ImageImporter {
 
         // TODO change the imageproxy API to ensure this happens automatically when
         // the image reference is dropped
-        proxy.close_image(&proxy_img).await?;
+        proxy.close_image(&import.proxy_img).await?;
 
         // We're done with the proxy, make sure it didn't have any errors.
         proxy.finalize().await?;
