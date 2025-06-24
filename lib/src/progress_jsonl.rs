@@ -2,6 +2,7 @@
 //! see <https://jsonlines.org/>.
 
 use anyhow::Result;
+use canon_json::CanonJsonSerialize;
 use schemars::JsonSchema;
 use serde::Serialize;
 use std::borrow::Cow;
@@ -199,8 +200,8 @@ impl TryFrom<RawProgressFd> for ProgressWriter {
 impl ProgressWriter {
     /// Serialize the target value as a single line of JSON and write it.
     async fn send_impl_inner<T: Serialize>(inner: &mut ProgressWriterInner, v: T) -> Result<()> {
-        // serde is guaranteed not to output newlines here
-        let buf = serde_json::to_vec(&v)?;
+        // canon_json is guaranteed not to output newlines here
+        let buf = v.to_canon_json_vec()?;
         inner.fd.write_all(&buf).await?;
         // We always end in a newline
         inner.fd.write_all(b"\n").await?;

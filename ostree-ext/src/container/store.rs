@@ -14,6 +14,7 @@ use crate::sysroot::SysrootLock;
 use crate::utils::ResultExt;
 use anyhow::{anyhow, Context};
 use camino::{Utf8Path, Utf8PathBuf};
+use canon_json::CanonJsonSerialize;
 use cap_std_ext::cap_std;
 use cap_std_ext::cap_std::fs::{Dir, MetadataExt};
 use cap_std_ext::cmdext::CapStdExtCommandExt;
@@ -603,9 +604,13 @@ impl ImageImporter {
             Self::CACHED_KEY_MANIFEST_DIGEST,
             manifest_digest.to_string(),
         );
-        let cached_manifest = serde_json::to_string(manifest).context("Serializing manifest")?;
+        let cached_manifest = manifest
+            .to_canon_json_string()
+            .context("Serializing manifest")?;
         commitmeta.insert(Self::CACHED_KEY_MANIFEST, cached_manifest);
-        let cached_config = serde_json::to_string(config).context("Serializing config")?;
+        let cached_config = config
+            .to_canon_json_string()
+            .context("Serializing config")?;
         commitmeta.insert(Self::CACHED_KEY_CONFIG, cached_config);
         let commitmeta = commitmeta.to_variant();
         // Clone these to move into blocking method
@@ -1042,15 +1047,19 @@ impl ImageImporter {
         let _ = self.layer_byte_progress.take();
         let _ = self.layer_progress.take();
 
-        let serialized_manifest = serde_json::to_string(&import.manifest)?;
-        let serialized_config = serde_json::to_string(&import.config)?;
         let mut metadata = HashMap::new();
         metadata.insert(
             META_MANIFEST_DIGEST,
             import.manifest_digest.to_string().to_variant(),
         );
-        metadata.insert(META_MANIFEST, serialized_manifest.to_variant());
-        metadata.insert(META_CONFIG, serialized_config.to_variant());
+        metadata.insert(
+            META_MANIFEST,
+            import.manifest.to_canon_json_string()?.to_variant(),
+        );
+        metadata.insert(
+            META_CONFIG,
+            import.config.to_canon_json_string()?.to_variant(),
+        );
         metadata.insert(
             "ostree.importer.version",
             env!("CARGO_PKG_VERSION").to_variant(),

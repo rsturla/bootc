@@ -27,6 +27,7 @@ use anyhow::{anyhow, ensure, Context, Result};
 use bootc_utils::CommandRunExt;
 use camino::Utf8Path;
 use camino::Utf8PathBuf;
+use canon_json::CanonJsonSerialize;
 use cap_std::fs::{Dir, MetadataExt};
 use cap_std_ext::cap_std;
 use cap_std_ext::cap_std::fs::FileType;
@@ -619,7 +620,7 @@ pub(crate) fn print_configuration() -> Result<()> {
     let mut install_config = config::load_config()?.unwrap_or_default();
     install_config.filter_to_external();
     let stdout = std::io::stdout().lock();
-    serde_json::to_writer(stdout, &install_config).map_err(Into::into)
+    anyhow::Ok(install_config.to_canon_json_writer(stdout)?)
 }
 
 #[context("Creating ostree deployment")]
@@ -1349,8 +1350,7 @@ async fn install_with_sysroot(
     rootfs
         .physical_root
         .atomic_replace_with(BOOTC_ALEPH_PATH, |f| {
-            serde_json::to_writer(f, &aleph)?;
-            anyhow::Ok(())
+            anyhow::Ok(aleph.to_canon_json_writer(f)?)
         })
         .context("Writing aleph version")?;
 
