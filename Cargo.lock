@@ -213,6 +213,7 @@ dependencies = [
  "bootc-tmpfiles",
  "bootc-utils",
  "camino",
+ "canon-json",
  "cap-std-ext",
  "chrono",
  "clap",
@@ -356,9 +357,9 @@ dependencies = [
 
 [[package]]
 name = "canon-json"
-version = "0.2.0"
+version = "0.2.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b43fa751f9635eb2183e5e7f3d29489507e0b42454bb69a992fcff7e1b310e29"
+checksum = "b5ae9f90437d2e2efba2a6c75b8279aa6b8f2f4017e0a4aeb64a76cd9d3a2bab"
 dependencies = [
  "serde",
  "serde_derive",
@@ -1795,6 +1796,7 @@ dependencies = [
  "anyhow",
  "bootc-utils",
  "camino",
+ "canon-json",
  "cap-std-ext",
  "chrono",
  "clap",

@@ -5,6 +5,7 @@ use std::io::Read;
 use std::io::Write;
 
 use anyhow::{Context, Result};
+use canon_json::CanonJsonSerialize;
 use fn_error_context::context;
 use ostree::glib;
 use ostree_container::OstreeImageReference;
@@ -320,7 +321,9 @@ pub(crate) async fn status(opts: super::cli::StatusOpts) -> Result<()> {
     };
     let format = opts.format.unwrap_or(legacy_opt);
     match format {
-        OutputFormat::Json => serde_json::to_writer(&mut out, &host).map_err(anyhow::Error::new),
+        OutputFormat::Json => host
+            .to_canon_json_writer(&mut out)
+            .map_err(anyhow::Error::new),
         OutputFormat::Yaml => serde_yaml::to_writer(&mut out, &host).map_err(anyhow::Error::new),
         OutputFormat::HumanReadable => human_readable_output(&mut out, &host),
     }
