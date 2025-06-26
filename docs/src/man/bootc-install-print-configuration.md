@@ -23,8 +23,8 @@ string-valued filesystem name suitable for passing to \`mkfs.\$type\`.
 
 **-h**, **\--help**
 
-:   Print help (see a summary with -h)
+:   Print help (see a summary with \'-h\')
 
 # VERSION
 
-v1.1.6
+v1.4.0

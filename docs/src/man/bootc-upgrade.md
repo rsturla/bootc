@@ -29,7 +29,7 @@ the update in addition.
 
 **\--quiet**
 
-:   Dont display progress
+:   Don\'t display progress
 
 **\--check**
 
@@ -49,8 +49,8 @@ the update in addition.
 
 **-h**, **\--help**
 
-:   Print help (see a summary with -h)
+:   Print help (see a summary with \'-h\')
 
 # VERSION
 
-v1.1.6
+v1.4.0

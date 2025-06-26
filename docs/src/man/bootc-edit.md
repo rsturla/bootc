@@ -28,12 +28,12 @@ Only changes to the \`spec\` section are honored.
 
 **\--quiet**
 
-:   Dont display progress
+:   Don\'t display progress
 
 **-h**, **\--help**
 
-:   Print help (see a summary with -h)
+:   Print help (see a summary with \'-h\')
 
 # VERSION
 
-v1.1.6
+v1.4.0

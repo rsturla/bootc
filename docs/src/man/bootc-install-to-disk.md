@@ -7,9 +7,8 @@ bootc-install-to-disk - Install to the target block device
 **bootc install to-disk** \[**\--wipe**\] \[**\--block-setup**\]
 \[**\--filesystem**\] \[**\--root-size**\] \[**\--source-imgref**\]
 \[**\--target-transport**\] \[**\--target-imgref**\]
-\[**\--enforce-container-sigpolicy**\]
-\[**\--skip-fetch-check**\] \[**\--run-fetch-check**\]
-\[**\--disable-selinux**\] \[**\--karg**\]
+\[**\--enforce-container-sigpolicy**\] \[**\--run-fetch-check**\]
+\[**\--skip-fetch-check**\] \[**\--disable-selinux**\] \[**\--karg**\]
 \[**\--root-ssh-authorized-keys**\] \[**\--generic-image**\]
 \[**\--bound-images**\] \[**\--stateroot**\] \[**\--via-loopback**\]
 \[**-h**\|**\--help**\] \<*DEVICE*\>
@@ -63,8 +62,8 @@ more complex such as RAID, LVM, LUKS etc.
 
     By default, bootc install and install-to-filesystem assumes that it
     runs in a podman container, and it takes the container image to
-    install from the podmans container registry. If \--source-imgref is
-    given, bootc uses it as the installation source, instead of the
+    install from the podman\'s container registry. If \--source-imgref
+    is given, bootc uses it as the installation source, instead of the
     behaviour explained in the previous paragraph. See skopeo(1) for
     accepted formats.
 
@@ -84,16 +83,17 @@ more complex such as RAID, LVM, LUKS etc.
     Enabling this option enforces that \`/etc/containers/policy.json\`
     includes a default policy which requires signatures
 
-**\--skip-fetch-check (deprecated, see --run-fetch-check)**
+**\--run-fetch-check**
 
-:   This is now the default and has no effect.
+:   Verify the image can be fetched from the bootc image. Updates may
+    fail when the installation host is authenticated with the registry
+    but the pull secret is not in the bootc image
 
-**\--run-fetch-check **
+**\--skip-fetch-check**
 
-:   Verify the target image can be pulled using the bootc image.
-
-    This will ensure the bootc system can be upgraded,
-    i.e. the registry credentials are available on the bootc image.
+:   Verify the image can be fetched from the bootc image. Updates may
+    fail when the installation host is authenticated with the registry
+    but the pull secret is not in the bootc image
 
 **\--disable-selinux**
 
@@ -135,11 +135,11 @@ more complex such as RAID, LVM, LUKS etc.
     \
     *Possible values:*
 
-    -   stored: Bound images must exist in the sources root container
+    -   stored: Bound images must exist in the source\'s root container
         storage (default)
 
     -   pull: Bound images will be pulled and stored directly in the
-        targets bootc container storage
+        target\'s bootc container storage
 
 **\--stateroot**=*STATEROOT*
 
@@ -151,7 +151,7 @@ more complex such as RAID, LVM, LUKS etc.
 
 **-h**, **\--help**
 
-:   Print help (see a summary with -h)
+:   Print help (see a summary with \'-h\')
 
 \<*DEVICE*\>
 
@@ -160,4 +160,4 @@ more complex such as RAID, LVM, LUKS etc.
 
 # VERSION
 
-v1.1.6
+v1.4.0

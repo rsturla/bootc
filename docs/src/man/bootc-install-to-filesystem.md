@@ -10,7 +10,7 @@ filesystem structure
 \[**\--acknowledge-destructive**\] \[**\--skip-finalize**\]
 \[**\--source-imgref**\] \[**\--target-transport**\]
 \[**\--target-imgref**\] \[**\--enforce-container-sigpolicy**\]
-\[**\--skip-fetch-check**\] \[**\--run-fetch-check**\]
+\[**\--run-fetch-check**\] \[**\--skip-fetch-check**\]
 \[**\--disable-selinux**\] \[**\--karg**\]
 \[**\--root-ssh-authorized-keys**\] \[**\--generic-image**\]
 \[**\--bound-images**\] \[**\--stateroot**\] \[**-h**\|**\--help**\]
@@ -61,8 +61,8 @@ is currently expected to be empty by default.
 
 **\--acknowledge-destructive**
 
-:   If the target is the running systems root filesystem, this will skip
-    any warnings
+:   If the target is the running system\'s root filesystem, this will
+    skip any warnings
 
 **\--skip-finalize**
 
@@ -77,8 +77,8 @@ is currently expected to be empty by default.
 
     By default, bootc install and install-to-filesystem assumes that it
     runs in a podman container, and it takes the container image to
-    install from the podmans container registry. If \--source-imgref is
-    given, bootc uses it as the installation source, instead of the
+    install from the podman\'s container registry. If \--source-imgref
+    is given, bootc uses it as the installation source, instead of the
     behaviour explained in the previous paragraph. See skopeo(1) for
     accepted formats.
 
@@ -98,16 +98,17 @@ is currently expected to be empty by default.
     Enabling this option enforces that \`/etc/containers/policy.json\`
     includes a default policy which requires signatures
 
-**\--skip-fetch-check (deprecated, see --run-fetch-check)**
-
-:   This is now the default and has no effect.
-
 **\--run-fetch-check**
 
-:   Verify the target image can be pulled using the bootc image.
+:   Verify the image can be fetched from the bootc image. Updates may
+    fail when the installation host is authenticated with the registry
+    but the pull secret is not in the bootc image
 
-    This will ensure the bootc system can be upgraded,
-    i.e. the registry credentials are available on the bootc image.
+**\--skip-fetch-check**
+
+:   Verify the image can be fetched from the bootc image. Updates may
+    fail when the installation host is authenticated with the registry
+    but the pull secret is not in the bootc image
 
 **\--disable-selinux**
 
@@ -149,11 +150,11 @@ is currently expected to be empty by default.
     \
     *Possible values:*
 
-    -   stored: Bound images must exist in the sources root container
+    -   stored: Bound images must exist in the source\'s root container
         storage (default)
 
     -   pull: Bound images will be pulled and stored directly in the
-        targets bootc container storage
+        target\'s bootc container storage
 
 **\--stateroot**=*STATEROOT*
 
@@ -161,7 +162,7 @@ is currently expected to be empty by default.
 
 **-h**, **\--help**
 
-:   Print help (see a summary with -h)
+:   Print help (see a summary with \'-h\')
 
 \<*ROOT_PATH*\>
 
@@ -172,4 +173,4 @@ is currently expected to be empty by default.
 
 # VERSION
 
-v1.1.6
+v1.4.0
