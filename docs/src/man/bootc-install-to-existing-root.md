@@ -7,11 +7,12 @@ bootc-install-to-existing-root - Install to the host root filesystem
 **bootc install to-existing-root** \[**\--replace**\]
 \[**\--source-imgref**\] \[**\--target-transport**\]
 \[**\--target-imgref**\] \[**\--enforce-container-sigpolicy**\]
-\[**\--skip-fetch-check**\] \[**\--run-fetch-check**\]
+\[**\--run-fetch-check**\] \[**\--skip-fetch-check**\]
+\[**\--disable-selinux**\] \[**\--karg**\]
 \[**\--root-ssh-authorized-keys**\] \[**\--generic-image**\]
 \[**\--bound-images**\] \[**\--stateroot**\]
-\[**\--acknowledge-destructive**\] \[**-h**\|**\--help**\]
-\[*ROOT_PATH*\]
+\[**\--acknowledge-destructive**\] \[**\--cleanup**\]
+\[**-h**\|**\--help**\] \[*ROOT_PATH*\]
 
 # DESCRIPTION
 
@@ -19,9 +20,9 @@ Install to the host root filesystem.
 
 This is a variant of \`install to-filesystem\` that is designed to
 install \"alongside\" the running host root filesystem. Currently, the
-host root filesystems \`/boot\` partition will be wiped, but the content
-of the existing root will otherwise be retained, and will need to be
-cleaned up if desired when rebooted into the new root.
+host root filesystem\'s \`/boot\` partition will be wiped, but the
+content of the existing root will otherwise be retained, and will need
+to be cleaned up if desired when rebooted into the new root.
 
 # OPTIONS
 
@@ -47,8 +48,8 @@ cleaned up if desired when rebooted into the new root.
 
     By default, bootc install and install-to-filesystem assumes that it
     runs in a podman container, and it takes the container image to
-    install from the podmans container registry. If \--source-imgref is
-    given, bootc uses it as the installation source, instead of the
+    install from the podman\'s container registry. If \--source-imgref
+    is given, bootc uses it as the installation source, instead of the
     behaviour explained in the previous paragraph. See skopeo(1) for
     accepted formats.
 
@@ -68,16 +69,17 @@ cleaned up if desired when rebooted into the new root.
     Enabling this option enforces that \`/etc/containers/policy.json\`
     includes a default policy which requires signatures
 
-**\--skip-fetch-check (deprecated, see --run-fetch-check)**
-
-:   This is now the default and has no effect.
-
 **\--run-fetch-check**
 
-:   Verify the target image can be pulled using the bootc image.
+:   Verify the image can be fetched from the bootc image. Updates may
+    fail when the installation host is authenticated with the registry
+    but the pull secret is not in the bootc image
 
-    This will ensure the bootc system can be upgraded,
-    i.e. the registry credentials are available on the bootc image.
+**\--skip-fetch-check**
+
+:   Verify the image can be fetched from the bootc image. Updates may
+    fail when the installation host is authenticated with the registry
+    but the pull secret is not in the bootc image
 
 **\--disable-selinux**
 
@@ -119,11 +121,11 @@ cleaned up if desired when rebooted into the new root.
     \
     *Possible values:*
 
-    -   stored: Bound images must exist in the sources root container
+    -   stored: Bound images must exist in the source\'s root container
         storage (default)
 
     -   pull: Bound images will be pulled and stored directly in the
-        targets bootc container storage
+        target\'s bootc container storage
 
 **\--stateroot**=*STATEROOT*
 
@@ -133,9 +135,14 @@ cleaned up if desired when rebooted into the new root.
 
 :   Accept that this is a destructive action and skip a warning timer
 
+**\--cleanup**
+
+:   Add the bootc-destructive-cleanup systemd service to delete files
+    from the previous install on first boot
+
 **-h**, **\--help**
 
-:   Print help (see a summary with -h)
+:   Print help (see a summary with \'-h\')
 
 \[*ROOT_PATH*\] \[default: /target\]
 
@@ -145,4 +152,4 @@ cleaned up if desired when rebooted into the new root.
 
 # VERSION
 
-v1.1.6
+v1.4.0

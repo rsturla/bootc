@@ -32,7 +32,7 @@ includes other setup and metadata.
 
 **-h**, **\--help**
 
-:   Print help (see a summary with -h)
+:   Print help (see a summary with \'-h\')
 
 # SUBCOMMANDS
 
@@ -71,4 +71,4 @@ bootc-install-help(8)
 
 # VERSION
 
-v1.1.6
+v1.4.0

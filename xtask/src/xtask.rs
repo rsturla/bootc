@@ -104,6 +104,19 @@ fn manpages(sh: &Shell) -> Result<()> {
         "cargo run --features=docgen -- man --directory target/man"
     )
     .run()?;
+
+    // Post-process hack to unconditionally define the roff string for
+    // apostrophe, See:
+    // https://github.com/bootc-dev/bootc/pull/1385#discussion_r2172661872
+    for page in std::fs::read_dir(sh.current_dir().join("target/man"))? {
+        let page = page?;
+        let path = page.path();
+        let groffsub = r"1i .ds Aq \\(aq";
+        let dropif = r"/\.g \.ds Aq/d";
+        let dropelse = r"/.el .ds Aq '/d";
+        cmd!(sh, "sed -i -e {groffsub} -e {dropif} -e {dropelse} {path}").run()?;
+    }
+
     // We also have some man pages for the systemd units which are canonically
     // maintained as markdown; convert them to man pages.
     let extradir = sh.current_dir().join("docs/src/man-md");

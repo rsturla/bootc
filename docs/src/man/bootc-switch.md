@@ -28,7 +28,7 @@ updates via container image tags; for example,
 
 **\--quiet**
 
-:   Dont display progress
+:   Don\'t display progress
 
 **\--apply**
 
@@ -57,7 +57,7 @@ updates via container image tags; for example,
 
 **-h**, **\--help**
 
-:   Print help (see a summary with -h)
+:   Print help (see a summary with \'-h\')
 
 \<*TARGET*\>
 
@@ -65,4 +65,4 @@ updates via container image tags; for example,
 
 # VERSION
 
-v1.1.6
+v1.4.0

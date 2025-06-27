@@ -22,7 +22,7 @@ pulled and \`bootc upgrade\`.
 
 **-h**, **\--help**
 
-:   Print help (see a summary with -h)
+:   Print help (see a summary with \'-h\')
 
 **-V**, **\--version**
 
@@ -72,4 +72,4 @@ bootc-help(8)
 
 # VERSION
 
-v1.1.6
+v1.4.0
