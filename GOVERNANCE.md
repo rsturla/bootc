@@ -99,7 +99,7 @@ This requires two votes from active maintainers.
 ## Meetings
 
 Time zones permitting, Maintainers are expected to participate in the public
-developer meeting, which occurs at 3:30 PM ET on Thursdays via [Zoom](TODO).
+developer meeting, which occurs at 15:30 UTC on Fridays via [Zoom](https://zoom-lfx.platform.linuxfoundation.org/meeting/96540875093?password=7889708d-c520-4565-90d3-ce9e253a1f65).
 
 Maintainers will also have closed meetings in order to discuss security reports
 or Code of Conduct violations.  Such meetings should be scheduled by any
