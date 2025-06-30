@@ -89,7 +89,7 @@ exclude-crate-paths = [ { name = "libz-sys", exclude = "src/zlib" },
 # This is an made up key for external binary dependencies.
 # setpriv is a proxy for util-linux, and systemctl is a proxy for systemd.
 [workspace.metadata.binary-dependencies]
-bins = ["skopeo", "podman", "ostree", "zstd", "setpriv", "systemctl"]
+bins = ["skopeo", "podman", "ostree", "zstd", "setpriv", "systemctl", "chcon"]
 
 [workspace.lints.rust]
 # Require an extra opt-in for unsafe
