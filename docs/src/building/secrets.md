@@ -2,16 +2,45 @@
 # Secrets (e.g. container pull secrets)
 
 To have `bootc` fetch updates from registry which requires authentication,
-you must include a pull secret in `/etc/ostree/auth.json` (or
-as of recent versions in `/usr/lib/ostree/auth.json`).
+you must include a pull secret in one of `/etc/ostree/auth.json`,
+`/run/ostree/auth.json` or `/usr/lib/ostree/auth.json`.
 
-Another common case is to also fetch container images via
-`podman` or equivalent.  There is a [pull request to add `/etc/containers/auth.json`](https://github.com/containers/image/pull/1746)
-which would be shared by the two stacks by default.
+The path to the authentication file differs from that used
+by e.g. `podman` by default as some of the file paths used
+there are not appropriate for system services (e.g. reading
+the `/root` home directory).
 
 Regardless, injecting this data is a good example of a generic
 "secret".  The bootc project does not currently include one
 single opinionated mechanism for secrets.
+
+## Synchronizing the bootc and podman credentials
+
+See the [containers-auth.json](https://github.com/containers/image/blob/main/docs/containers-auth.json.5.md) man page. In many cases, you will
+want to keep both the bootc and podman/skopeo credentials
+in sync. One pattern is to symlink the two via e.g. a systemd `tmpfiles.d` fragment.
+
+If you have a process invoking `podman login` (which by default writes to
+an ephemeral `$XDG_RUNTIME_DIR/containers/auth.json`) you can then
+`ln -s /run/user/0/containers/auth.json /run/ostree/auth.json`.
+
+## Performing an explicit login
+
+If you have automation (or manual processes) performing a login,
+you can pass `--authfile` to set the bootc authfile explicitly;
+for example
+
+```bash
+echo <somepassword> | podman login --authfile /run/ostree/auth.json -u someuser --password-stdin
+```
+
+This pattern of using the ephemeral location in `/run` can work
+well when the credentials are derived on system start from
+an external system. For example, `aws ecr get-login-password --region region`
+as suggested by [this document](https://docs.aws.amazon.com/AmazonECR/latest/userguide/Podman.html).
+
+You can also use the machine-local persistent location `/etc/ostree/auth.json`
+via this method.
 
 ## Using a credential helper
 
