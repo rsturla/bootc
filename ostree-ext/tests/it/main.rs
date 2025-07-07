@@ -534,7 +534,7 @@ async fn impl_test_container_import_export(chunked: bool) -> Result<()> {
     opts.copy_meta_keys = vec!["buildsys.checksum".to_string()];
     opts.copy_meta_opt_keys = vec!["nosuchvalue".to_string()];
     opts.max_layers = std::num::NonZeroU32::new(PKGS_V0_LEN as u32);
-    opts.contentmeta = contentmeta.as_ref();
+    opts.package_contentmeta = contentmeta.as_ref();
     opts.container_config = Some(container_config);
     let digest = ostree_ext::container::encapsulate(
         fixture.srcrepo(),

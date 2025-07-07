@@ -239,7 +239,7 @@ fn build_oci(
     let mut manifest = writer.new_empty_manifest()?.build().unwrap();
 
     let chunking = opts
-        .contentmeta
+        .package_contentmeta
         .as_ref()
         .map(|meta| {
             crate::chunking::Chunking::from_mapping(
@@ -248,6 +248,7 @@ fn build_oci(
                 meta,
                 &opts.max_layers,
                 opts.prior_build,
+                opts.specific_contentmeta,
             )
         })
         .transpose()?;
@@ -427,7 +428,9 @@ pub struct ExportOpts<'m, 'o> {
     pub prior_build: Option<&'m oci_image::ImageManifest>,
     /// Metadata mapping between objects and their owning component/package;
     /// used to optimize packing.
-    pub contentmeta: Option<&'o ObjectMetaSized>,
+    pub package_contentmeta: Option<&'o ObjectMetaSized>,
+    /// Metadata for exclusive components that should have their own layers.
+    pub specific_contentmeta: Option<&'o ObjectMetaSized>,
     /// Sets the created tag in the image manifest.
     pub created: Option<String>,
     /// Whether to explicitly create all parent directories in the tar layers.
