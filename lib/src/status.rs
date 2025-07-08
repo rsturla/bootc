@@ -325,7 +325,7 @@ pub(crate) async fn status(opts: super::cli::StatusOpts) -> Result<()> {
             .to_canon_json_writer(&mut out)
             .map_err(anyhow::Error::new),
         OutputFormat::Yaml => serde_yaml::to_writer(&mut out, &host).map_err(anyhow::Error::new),
-        OutputFormat::HumanReadable => human_readable_output(&mut out, &host),
+        OutputFormat::HumanReadable => human_readable_output(&mut out, &host, opts.verbose),
     }
     .context("Writing to stdout")?;
 
@@ -359,12 +359,35 @@ fn write_row_name(mut out: impl Write, s: &str, prefix_len: usize) -> Result<()>
     Ok(())
 }
 
+/// Helper function to render verbose ostree information
+fn render_verbose_ostree_info(
+    mut out: impl Write,
+    ostree: &crate::spec::BootEntryOstree,
+    slot: Option<Slot>,
+    prefix_len: usize,
+) -> Result<()> {
+    write_row_name(&mut out, "StateRoot", prefix_len)?;
+    writeln!(out, "{}", ostree.stateroot)?;
+
+    // Show deployment serial (similar to Index in rpm-ostree)
+    write_row_name(&mut out, "Deploy serial", prefix_len)?;
+    writeln!(out, "{}", ostree.deploy_serial)?;
+
+    // Show if this is staged
+    let is_staged = matches!(slot, Some(Slot::Staged));
+    write_row_name(&mut out, "Staged", prefix_len)?;
+    writeln!(out, "{}", if is_staged { "yes" } else { "no" })?;
+
+    Ok(())
+}
+
 /// Write the data for a container image based status.
 fn human_render_slot(
     mut out: impl Write,
     slot: Option<Slot>,
     entry: &crate::spec::BootEntry,
     image: &crate::spec::ImageStatus,
+    verbose: bool,
 ) -> Result<()> {
     let transport = &image.image.transport;
     let imagename = &image.image.image;
@@ -415,6 +438,33 @@ fn human_render_slot(
         writeln!(out, "yes")?;
     }
 
+    if verbose {
+        // Show additional information in verbose mode similar to rpm-ostree
+        if let Some(ostree) = &entry.ostree {
+            render_verbose_ostree_info(&mut out, ostree, slot, prefix_len)?;
+
+            // Show the commit (equivalent to Base Commit in rpm-ostree)
+            write_row_name(&mut out, "Commit", prefix_len)?;
+            writeln!(out, "{}", ostree.checksum)?;
+        }
+
+        // Show signature information if available
+        if let Some(signature) = &image.image.signature {
+            write_row_name(&mut out, "Signature", prefix_len)?;
+            match signature {
+                crate::spec::ImageSignature::OstreeRemote(remote) => {
+                    writeln!(out, "ostree-remote:{}", remote)?;
+                }
+                crate::spec::ImageSignature::ContainerPolicy => {
+                    writeln!(out, "container-policy")?;
+                }
+                crate::spec::ImageSignature::Insecure => {
+                    writeln!(out, "insecure")?;
+                }
+            }
+        }
+    }
+
     tracing::debug!("pinned={}", entry.pinned);
 
     Ok(())
@@ -426,6 +476,7 @@ fn human_render_slot_ostree(
     slot: Option<Slot>,
     entry: &crate::spec::BootEntry,
     ostree_commit: &str,
+    verbose: bool,
 ) -> Result<()> {
     // TODO consider rendering more ostree stuff here like rpm-ostree status does
     let prefix = match slot {
@@ -444,11 +495,18 @@ fn human_render_slot_ostree(
         writeln!(out, "yes")?;
     }
 
+    if verbose {
+        // Show additional information in verbose mode similar to rpm-ostree
+        if let Some(ostree) = &entry.ostree {
+            render_verbose_ostree_info(&mut out, ostree, slot, prefix_len)?;
+        }
+    }
+
     tracing::debug!("pinned={}", entry.pinned);
     Ok(())
 }
 
-fn human_readable_output_booted(mut out: impl Write, host: &Host) -> Result<()> {
+fn human_readable_output_booted(mut out: impl Write, host: &Host, verbose: bool) -> Result<()> {
     let mut first = true;
     for (slot_name, status) in [
         (Slot::Staged, &host.status.staged),
@@ -462,9 +520,15 @@ fn human_readable_output_booted(mut out: impl Write, host: &Host) -> Result<()> 
                 writeln!(out)?;
             }
             if let Some(image) = &host_status.image {
-                human_render_slot(&mut out, Some(slot_name), host_status, image)?;
+                human_render_slot(&mut out, Some(slot_name), host_status, image, verbose)?;
             } else if let Some(ostree) = host_status.ostree.as_ref() {
-                human_render_slot_ostree(&mut out, Some(slot_name), host_status, &ostree.checksum)?;
+                human_render_slot_ostree(
+                    &mut out,
+                    Some(slot_name),
+                    host_status,
+                    &ostree.checksum,
+                    verbose,
+                )?;
             } else {
                 writeln!(out, "Current {slot_name} state is unknown")?;
             }
@@ -476,9 +540,9 @@ fn human_readable_output_booted(mut out: impl Write, host: &Host) -> Result<()> 
             writeln!(out)?;
 
             if let Some(image) = &entry.image {
-                human_render_slot(&mut out, None, entry, image)?;
+                human_render_slot(&mut out, None, entry, image, verbose)?;
             } else if let Some(ostree) = entry.ostree.as_ref() {
-                human_render_slot_ostree(&mut out, None, entry, &ostree.checksum)?;
+                human_render_slot_ostree(&mut out, None, entry, &ostree.checksum, verbose)?;
             }
         }
     }
@@ -487,9 +551,9 @@ fn human_readable_output_booted(mut out: impl Write, host: &Host) -> Result<()> 
 }
 
 /// Implementation of rendering our host structure in a "human readable" way.
-fn human_readable_output(mut out: impl Write, host: &Host) -> Result<()> {
+fn human_readable_output(mut out: impl Write, host: &Host, verbose: bool) -> Result<()> {
     if host.status.booted.is_some() {
-        human_readable_output_booted(out, host)?;
+        human_readable_output_booted(out, host, verbose)?;
     } else {
         writeln!(out, "System is not deployed via bootc.")?;
     }
@@ -503,7 +567,17 @@ mod tests {
     fn human_status_from_spec_fixture(spec_fixture: &str) -> Result<String> {
         let host: Host = serde_yaml::from_str(spec_fixture).unwrap();
         let mut w = Vec::new();
-        human_readable_output(&mut w, &host).unwrap();
+        human_readable_output(&mut w, &host, false).unwrap();
+        let w = String::from_utf8(w).unwrap();
+        Ok(w)
+    }
+
+    /// Helper function to generate human-readable status output with verbose mode enabled
+    /// from a YAML fixture string. Used for testing verbose output formatting.
+    fn human_status_from_spec_fixture_verbose(spec_fixture: &str) -> Result<String> {
+        let host: Host = serde_yaml::from_str(spec_fixture).unwrap();
+        let mut w = Vec::new();
+        human_readable_output(&mut w, &host, true).unwrap();
         let w = String::from_utf8(w).unwrap();
         Ok(w)
     }
@@ -633,5 +707,19 @@ mod tests {
                   Pinned: yes
         "};
         similar_asserts::assert_eq!(w, expected);
+    }
+
+    #[test]
+    fn test_human_readable_verbose_spec() {
+        // Test verbose output includes additional fields
+        let w =
+            human_status_from_spec_fixture_verbose(include_str!("fixtures/spec-only-booted.yaml"))
+                .expect("No spec found");
+
+        // Verbose output should include StateRoot, Deploy serial, Staged, and Commit
+        assert!(w.contains("StateRoot:"));
+        assert!(w.contains("Deploy serial:"));
+        assert!(w.contains("Staged:"));
+        assert!(w.contains("Commit:"));
     }
 }
