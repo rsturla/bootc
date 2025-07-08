@@ -13,7 +13,9 @@ pub(crate) fn reboot() -> anyhow::Result<()> {
     // Flush output streams
     let _ = std::io::stdout().flush();
     let _ = std::io::stderr().flush();
-    Task::new("Rebooting system", "reboot").run()?;
+    Task::new("Rebooting system", "systemd-run")
+        .args(["--message=Initiated by bootc", "reboot"])
+        .run()?;
     tracing::debug!("Initiated reboot, sleeping forever...");
     loop {
         std::thread::park();
