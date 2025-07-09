@@ -188,6 +188,10 @@ pub(crate) struct StatusOpts {
     /// Only display status for the booted deployment.
     #[clap(long)]
     pub(crate) booted: bool,
+
+    /// Include additional fields in human readable format.
+    #[clap(long, short = 'v')]
+    pub(crate) verbose: bool,
 }
 
 #[derive(Debug, clap::Subcommand, PartialEq, Eq)]
@@ -1343,7 +1347,8 @@ mod tests {
                 json: false,
                 format: None,
                 format_version: None,
-                booted: false
+                booted: false,
+                verbose: false
             })
         ));
         assert!(matches!(
@@ -1352,6 +1357,18 @@ mod tests {
                 format_version: Some(0),
                 ..
             })
+        ));
+
+        // Test verbose long form
+        assert!(matches!(
+            Opt::parse_including_static(["bootc", "status", "--verbose"]),
+            Opt::Status(StatusOpts { verbose: true, .. })
+        ));
+
+        // Test verbose short form
+        assert!(matches!(
+            Opt::parse_including_static(["bootc", "status", "-v"]),
+            Opt::Status(StatusOpts { verbose: true, .. })
         ));
     }
 
