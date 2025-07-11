@@ -18,6 +18,7 @@ use indoc::indoc;
 use ostree::gio;
 use ostree_container::store::PrepareResult;
 use ostree_ext::composefs::fsverity;
+use ostree_ext::composefs::fsverity::FsVerityHashValue;
 use ostree_ext::container as ostree_container;
 use ostree_ext::container_utils::ostree_booted;
 use ostree_ext::keyfileext::KeyFileExt;
@@ -1218,7 +1219,7 @@ async fn run_from_opt(opt: Opt) -> Result<()> {
                     let fd =
                         std::fs::File::open(&path).with_context(|| format!("Reading {path}"))?;
                     let digest: fsverity::Sha256HashValue = fsverity::measure_verity(&fd)?;
-                    let digest = hex::encode(digest);
+                    let digest = digest.to_hex();
                     println!("{digest}");
                     Ok(())
                 }
