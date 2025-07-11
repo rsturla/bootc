@@ -909,7 +909,7 @@ impl Fixture {
             .context("Computing sizes")?;
         let opts = ExportOpts {
             max_layers: std::num::NonZeroU32::new(PKGS_V0_LEN as u32),
-            contentmeta: Some(&contentmeta),
+            package_contentmeta: Some(&contentmeta),
             ..Default::default()
         };
         let digest = crate::container::encapsulate(

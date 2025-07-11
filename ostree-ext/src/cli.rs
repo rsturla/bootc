@@ -766,7 +766,7 @@ async fn container_export(
     container_config: Option<Utf8PathBuf>,
     cmd: Option<Vec<String>>,
     compression_fast: bool,
-    contentmeta: Option<Utf8PathBuf>,
+    package_contentmeta: Option<Utf8PathBuf>,
 ) -> Result<()> {
     let container_config = if let Some(container_config) = container_config {
         serde_json::from_reader(File::open(container_config).map(BufReader::new)?)?
@@ -777,7 +777,7 @@ async fn container_export(
     let mut contentmeta_data = None;
     let mut created = None;
     let mut labels = labels.clone();
-    if let Some(contentmeta) = contentmeta {
+    if let Some(contentmeta) = package_contentmeta {
         let buf = File::open(contentmeta).map(BufReader::new);
         let raw: RawMeta = serde_json::from_reader(buf?)?;
 
@@ -842,7 +842,7 @@ async fn container_export(
         container_config,
         authfile,
         skip_compression: compression_fast, // TODO rename this in the struct at the next semver break
-        contentmeta: contentmeta_data.as_ref(),
+        package_contentmeta: contentmeta_data.as_ref(),
         max_layers,
         created,
         ..Default::default()
