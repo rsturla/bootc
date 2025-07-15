@@ -525,7 +525,7 @@ checksum = "55b672471b4e9f9e95499ea597ff64941a309b2cdbffcc46f2cc5e2d971fd335"
 [[package]]
 name = "composefs"
 version = "0.3.0"
-source = "git+https://github.com/containers/composefs-rs?rev=59299eb8de6c22410f32213cc57901a7ddd3c134#59299eb8de6c22410f32213cc57901a7ddd3c134"
+source = "git+https://github.com/containers/composefs-rs?rev=d5455222f282200913902f29c66d5f625ca5661f#d5455222f282200913902f29c66d5f625ca5661f"
 dependencies = [
  "anyhow",
  "hex",
