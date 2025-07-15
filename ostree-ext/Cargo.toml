@@ -17,7 +17,7 @@ ostree = { features = ["v2025_2"], version = "0.20" }
 anyhow = { workspace = true }
 bootc-utils = { package = "bootc-internal-utils", path = "../utils", version = "0.0.0" }
 camino = { workspace = true, features = ["serde1"] }
-composefs = { git = "https://github.com/containers/composefs-rs", rev = "59299eb8de6c22410f32213cc57901a7ddd3c134", features = ["rhel9"] }
+composefs = { git = "https://github.com/containers/composefs-rs", rev = "d5455222f282200913902f29c66d5f625ca5661f", features = ["rhel9"] }
 chrono = { workspace = true }
 clap = { workspace = true, features = ["derive","cargo"] }
 clap_mangen = { workspace = true, optional = true }
