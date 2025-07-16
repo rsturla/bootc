@@ -1047,7 +1047,7 @@ impl ImageImporter {
         let _ = self.layer_byte_progress.take();
         let _ = self.layer_progress.take();
 
-        let mut metadata = HashMap::new();
+        let mut metadata = BTreeMap::new();
         metadata.insert(
             META_MANIFEST_DIGEST,
             import.manifest_digest.to_string().to_variant(),
