@@ -1,17 +1,5 @@
 [workspace]
-members = [
-    "cli",
-    "system-reinstall-bootc",
-    "lib",
-    "mount",
-    "ostree-ext",
-    "utils",
-    "blockdev",
-    "xtask",
-    "tests-integration",
-    "tmpfiles",
-    "sysusers",
-]
+members = ["crates/*"]
 resolver = "2"
 
 [profile.dev]

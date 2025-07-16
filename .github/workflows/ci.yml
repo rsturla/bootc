@@ -103,7 +103,7 @@ jobs:
           df -h /
           # The ostree-container tests
           sudo podman run --privileged --pid=host -v /:/run/host -v $(pwd):/src:ro -v /var/tmp:/var/tmp \
-            -v /run/dbus:/run/dbus -v /run/systemd:/run/systemd localhost/bootc /src/ostree-ext/ci/priv-integration.sh
+            -v /run/dbus:/run/dbus -v /run/systemd:/run/systemd localhost/bootc /src/crates/ostree-ext/ci/priv-integration.sh
           # Nondestructive but privileged tests
           sudo bootc-integration-tests host-privileged localhost/bootc-integration
           # Install tests
