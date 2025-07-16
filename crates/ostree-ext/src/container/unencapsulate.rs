@@ -38,18 +38,12 @@ use containers_image_proxy::{ImageProxy, OpenedImage};
 use fn_error_context::context;
 use futures_util::{Future, FutureExt};
 use oci_spec::image::{self as oci_image, Digest};
-use std::io::Read;
 use std::sync::{Arc, Mutex};
 use tokio::{
     io::{AsyncBufRead, AsyncRead},
     sync::watch::{Receiver, Sender},
 };
 use tracing::instrument;
-
-/// The legacy MIME type returned by the skopeo/(containers/storage) code
-/// when we have local uncompressed docker-formatted image.
-/// TODO: change the skopeo code to shield us from this correctly
-const DOCKER_TYPE_LAYER_TAR: &str = "application/vnd.docker.image.rootfs.diff.tar";
 
 type Progress = tokio::sync::watch::Sender<u64>;
 
@@ -191,89 +185,6 @@ pub async fn unencapsulate(repo: &ostree::Repo, imgref: &OstreeImageReference) -
     importer.unencapsulate().await
 }
 
-pub(crate) struct Decompressor {
-    inner: Box<dyn Read + Send + 'static>,
-    finished: bool,
-}
-
-impl Read for Decompressor {
-    fn read(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
-        self.inner.read(buf)
-    }
-}
-
-impl Drop for Decompressor {
-    fn drop(&mut self) {
-        if self.finished {
-            return;
-        }
-
-        // We really should not get here; users are required to call
-        // `finish()` to clean up the stream.  But we'll give
-        // best-effort to clean things up nonetheless.  If things go
-        // wrong, then panic, because we're in a bad state and it's
-        // likely that we end up with a broken pipe error or a
-        // deadlock.
-        self._finish().expect("Decompressor::finish MUST be called")
-    }
-}
-
-impl Decompressor {
-    /// Create a decompressor for this MIME type, given a stream of input.
-    pub(crate) fn new(
-        media_type: &oci_image::MediaType,
-        src: impl Read + Send + 'static,
-    ) -> Result<Self> {
-        let r: Box<dyn std::io::Read + Send + 'static> = match media_type {
-            oci_image::MediaType::ImageLayerZstd => {
-                Box::new(zstd::stream::read::Decoder::new(src)?)
-            }
-            oci_image::MediaType::ImageLayerGzip => Box::new(flate2::bufread::GzDecoder::new(
-                std::io::BufReader::new(src),
-            )),
-            oci_image::MediaType::ImageLayer => Box::new(src),
-            oci_image::MediaType::Other(t) if t.as_str() == DOCKER_TYPE_LAYER_TAR => Box::new(src),
-            o => anyhow::bail!("Unhandled layer type: {}", o),
-        };
-        Ok(Self {
-            inner: r,
-            finished: false,
-        })
-    }
-
-    pub(crate) fn finish(mut self) -> Result<()> {
-        self._finish()
-    }
-
-    fn _finish(&mut self) -> Result<()> {
-        self.finished = true;
-
-        // We need to make sure to flush out the decompressor and/or
-        // tar stream here.  For tar, we might not read through the
-        // entire stream, because the archive has zero-block-markers
-        // at the end; or possibly because the final entry is filtered
-        // in filter_tar so we don't advance to read the data.  For
-        // decompressor, zstd:chunked layers will have
-        // metadata/skippable frames at the end of the stream.  That
-        // data isn't relevant to the tar stream, but if we don't read
-        // it here then on the skopeo proxy we'll block trying to
-        // write the end of the stream.  That in turn will block our
-        // client end trying to call FinishPipe, and we end up
-        // deadlocking ourselves through skopeo.
-        //
-        // https://github.com/bootc-dev/bootc/issues/1204
-
-        let mut sink = std::io::sink();
-        let n = std::io::copy(&mut self.inner, &mut sink)?;
-
-        if n > 0 {
-            tracing::debug!("Read extra {n} bytes at end of decompressor stream");
-        }
-
-        Ok(())
-    }
-}
-
 /// A wrapper for [`get_blob`] which fetches a layer and decompresses it.
 pub(crate) async fn fetch_layer<'a>(
     proxy: &'a ImageProxy,
@@ -333,33 +244,5 @@ pub(crate) async fn fetch_layer<'a>(
         Ok((reader, Either::Left(driver), media_type))
     } else {
         Ok((Box::new(blob), Either::Right(driver), media_type))
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    struct BrokenPipe;
-
-    impl Read for BrokenPipe {
-        fn read(&mut self, _buf: &mut [u8]) -> std::io::Result<usize> {
-            std::io::Result::Err(std::io::ErrorKind::BrokenPipe.into())
-        }
-    }
-
-    #[test]
-    #[should_panic(expected = "Decompressor::finish MUST be called")]
-    fn test_drop_decompressor_with_finish_error_should_panic() {
-        let broken = BrokenPipe;
-        let d = Decompressor::new(&oci_image::MediaType::ImageLayer, broken).unwrap();
-        drop(d)
-    }
-
-    #[test]
-    fn test_drop_decompressor_with_successful_finish() {
-        let empty = std::io::empty();
-        let d = Decompressor::new(&oci_image::MediaType::ImageLayer, empty).unwrap();
-        drop(d)
     }
 }
