@@ -472,6 +472,9 @@ pub(crate) enum InternalsOpts {
         // The stateroot
         stateroot: String,
     },
+    /// Initiate a reboot the same way we would after --apply; intended
+    /// primarily for testing.
+    Reboot,
     #[cfg(feature = "rhsm")]
     /// Publish subscription-manager facts to /etc/rhsm/facts/bootc.facts
     PublishRhsmFacts,
@@ -1230,6 +1233,7 @@ async fn run_from_opt(opt: Opt) -> Result<()> {
                     Ok(())
                 }
             },
+            InternalsOpts::Reboot => crate::reboot::reboot(),
             InternalsOpts::Fsck => {
                 let sysroot = &get_storage().await?;
                 crate::fsck::fsck(&sysroot, std::io::stdout().lock()).await?;
