@@ -939,6 +939,8 @@ impl Fixture {
         temprootd.create_dir_with("usr/bin", &db)?;
         temprootd.write("usr/bin/newderivedfile", "newderivedfile v0")?;
         temprootd.write("usr/bin/newderivedfile3", "newderivedfile3 v0")?;
+        temprootd.create_dir_with("run", &db)?;
+        temprootd.write("run/filtered", "data")?;
         crate::integrationtest::generate_derived_oci(derived_path, temproot, tag)?;
         Ok(())
     }

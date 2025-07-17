@@ -238,6 +238,10 @@ pub(crate) enum ContainerImageOpts {
         #[clap(value_parser = parse_imgref)]
         imgref: OstreeImageReference,
 
+        /// File to which to write the resulting OSTree commit digest
+        #[clap(long)]
+        ostree_digestfile: Option<Utf8PathBuf>,
+
         #[clap(flatten)]
         proxyopts: ContainerProxyOpts,
 
@@ -863,6 +867,7 @@ async fn container_info(imgref: &OstreeImageReference) -> Result<()> {
 async fn container_store(
     repo: &ostree::Repo,
     imgref: &OstreeImageReference,
+    ostree_digestfile: Option<Utf8PathBuf>,
     proxyopts: ContainerProxyOpts,
     quiet: bool,
     check: Option<Utf8PathBuf>,
@@ -870,6 +875,7 @@ async fn container_store(
     let mut imp = ImageImporter::new(repo, imgref, proxyopts.into()).await?;
     let prep = match imp.prepare().await? {
         PrepareResult::AlreadyPresent(c) => {
+            write_digest_file(ostree_digestfile, &c.merge_commit)?;
             println!("No changes in {} => {}", imgref, c.merge_commit);
             return Ok(());
         }
@@ -906,14 +912,23 @@ async fn container_store(
     }
     let import = import?;
     if let Some(msg) =
-        ostree_container::store::image_filtered_content_warning(repo, &imgref.imgref)?
+        ostree_container::store::image_filtered_content_warning(&import.filtered_files)?
     {
         eprintln!("{msg}")
     }
     if let Some(ref text) = import.verify_text {
         println!("{text}");
     }
+    write_digest_file(ostree_digestfile, &import.merge_commit)?;
     println!("Wrote: {} => {}", imgref, import.merge_commit);
+    Ok(())
+}
+
+fn write_digest_file(digestfile: Option<Utf8PathBuf>, digest: &str) -> Result<()> {
+    if let Some(digestfile) = digestfile.as_deref() {
+        let rootfs = Dir::open_ambient_dir("/", cap_std::ambient_authority())?;
+        rootfs.write(digestfile.as_str().trim_start_matches('/'), digest)?;
+    }
     Ok(())
 }
 
@@ -1095,12 +1110,14 @@ async fn run_from_opt(opt: Opt) -> Result<()> {
                 ContainerImageOpts::Pull {
                     repo,
                     imgref,
+                    ostree_digestfile,
                     proxyopts,
                     quiet,
                     check,
                 } => {
                     let repo = parse_repo(&repo)?;
-                    container_store(&repo, &imgref, proxyopts, quiet, check).await
+                    container_store(&repo, &imgref, ostree_digestfile, proxyopts, quiet, check)
+                        .await
                 }
                 ContainerImageOpts::Reexport {
                     repo,
@@ -1263,7 +1280,6 @@ async fn run_from_opt(opt: Opt) -> Result<()> {
                         ostree::Sysroot::new_default()
                     };
                     sysroot.load(gio::Cancellable::NONE)?;
-                    let repo = &sysroot.repo();
                     let kargs = karg.as_deref();
                     let kargs = kargs.map(|v| {
                         let r: Vec<_> = v.iter().map(|s| s.as_str()).collect();
@@ -1321,10 +1337,8 @@ async fn run_from_opt(opt: Opt) -> Result<()> {
                         Some(options),
                     )
                     .await?;
-                    let wrote_imgref = target_imgref.as_ref().unwrap_or(&imgref);
                     if let Some(msg) = ostree_container::store::image_filtered_content_warning(
-                        repo,
-                        &wrote_imgref.imgref,
+                        &state.filtered_files,
                     )? {
                         eprintln!("{msg}")
                     }

@@ -793,22 +793,15 @@ async fn install_container(
     let repo = &sysroot.repo();
     repo.set_disable_fsync(true);
 
-    let pulled_image =
-        match prepare_for_pull(repo, &spec_imgref, Some(&state.target_imgref)).await? {
-            PreparedPullResult::AlreadyPresent(existing) => existing,
-            PreparedPullResult::Ready(image_meta) => {
-                check_disk_space(root_setup.physical_root.as_fd(), &image_meta, &spec_imgref)?;
-                pull_from_prepared(
-                    repo,
-                    &spec_imgref,
-                    Some(&state.target_imgref),
-                    false,
-                    ProgressWriter::default(),
-                    image_meta,
-                )
-                .await?
-            }
-        };
+    let pulled_image = match prepare_for_pull(repo, &spec_imgref, Some(&state.target_imgref))
+        .await?
+    {
+        PreparedPullResult::AlreadyPresent(existing) => existing,
+        PreparedPullResult::Ready(image_meta) => {
+            check_disk_space(root_setup.physical_root.as_fd(), &image_meta, &spec_imgref)?;
+            pull_from_prepared(&spec_imgref, false, ProgressWriter::default(), image_meta).await?
+        }
+    };
 
     repo.set_disable_fsync(false);
 
