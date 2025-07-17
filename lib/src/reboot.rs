@@ -14,7 +14,7 @@ pub(crate) fn reboot() -> anyhow::Result<()> {
     let _ = std::io::stdout().flush();
     let _ = std::io::stderr().flush();
     Task::new("Rebooting system", "systemd-run")
-        .args(["--message=Initiated by bootc", "reboot"])
+        .args(["--", "systemctl", "reboot", "--message=Initiated by bootc"])
         .run()?;
     tracing::debug!("Initiated reboot, sleeping forever...");
     loop {
