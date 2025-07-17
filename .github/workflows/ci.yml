@@ -56,7 +56,7 @@ jobs:
         run: sudo apt update && sudo apt install just
       - uses: actions/checkout@v4
       - name: Build and run container integration tests
-        run: sudo just run-container-integration
+        run: sudo just run-container-integration run-container-external-tests
   cargo-deny:
     runs-on: ubuntu-latest
     steps:

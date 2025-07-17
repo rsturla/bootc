@@ -10,5 +10,9 @@ build-integration-test-image *ARGS: build
 run-container-integration: build-integration-test-image
     podman run --rm localhost/bootc-integration bootc-integration-tests container
 
+# These tests may spawn their own container images.
+run-container-external-tests:
+   ./tests/container/run localhost/bootc
+
 unittest *ARGS:
     podman build --jobs=4 --target units -t localhost/bootc-units --build-arg=unitargs={{ARGS}} .
