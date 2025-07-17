@@ -58,9 +58,7 @@ pub(crate) const META_MANIFEST_DIGEST: &str = "ostree.manifest-digest";
 const META_MANIFEST: &str = "ostree.manifest";
 /// The key injected into the merge commit with the image configuration serialized as JSON.
 const META_CONFIG: &str = "ostree.container.image-config";
-/// Value of type `a{sa{su}}` containing number of filtered out files
-pub const META_FILTERED: &str = "ostree.tar-filtered";
-/// The type used to store content filtering information with `META_FILTERED`.
+/// The type used to store content filtering information.
 pub type MetaFilteredData = HashMap<String, HashMap<String, u32>>;
 
 /// The ref prefixes which point to ostree deployments.  (TODO: Add an official API for this)
@@ -138,6 +136,8 @@ pub struct LayeredImageState {
     /// in the future we should probably instead just proxy a signature object
     /// instead, but this is sufficient for now.
     pub verify_text: Option<String>,
+    /// Files that were filtered out during the import.
+    pub filtered_files: Option<MetaFilteredData>,
 }
 
 impl LayeredImageState {
@@ -969,7 +969,7 @@ impl ImageImporter {
         let ostree_ref = ref_for_image(&target_imgref.imgref)?;
 
         let mut layer_commits = Vec::new();
-        let mut layer_filtered_content: MetaFilteredData = HashMap::new();
+        let mut layer_filtered_content: Option<MetaFilteredData> = None;
         let have_derived_layers = !import.layers.is_empty();
         tracing::debug!("Processing layers: {}", import.layers.len());
         for layer in import.layers {
@@ -1024,7 +1024,9 @@ impl ImageImporter {
                         write!(msg, "...and {n_rest} more").unwrap();
                     }
                     tracing::debug!("Found filtered toplevels: {msg}");
-                    layer_filtered_content.insert(layer.layer.digest().to_string(), filtered_owned);
+                    layer_filtered_content
+                        .get_or_insert_default()
+                        .insert(layer.layer.digest().to_string(), filtered_owned);
                 } else {
                     tracing::debug!("No filtered content");
                 }
@@ -1064,8 +1066,6 @@ impl ImageImporter {
             "ostree.importer.version",
             env!("CARGO_PKG_VERSION").to_variant(),
         );
-        let filtered = layer_filtered_content.to_variant();
-        metadata.insert(META_FILTERED, filtered);
         let metadata = metadata.to_variant();
 
         let timestamp = timestamp_of_manifest_or_config(&import.manifest, &import.config)
@@ -1191,6 +1191,7 @@ impl ImageImporter {
         .await?;
         // We can at least avoid re-verifying the base commit.
         state.verify_text = import.verify_text;
+        state.filtered_files = layer_filtered_content;
         Ok(state)
     }
 }
@@ -1354,6 +1355,7 @@ pub fn query_image_commit(repo: &ostree::Repo, commit: &str) -> Result<Box<Layer
         cached_update,
         // we can't cross-reference with a remote here
         verify_text: None,
+        filtered_files: None,
     });
     tracing::debug!("Wrote merge commit {}", state.merge_commit);
     Ok(state)
@@ -1726,36 +1728,26 @@ pub fn count_layer_references(repo: &ostree::Repo) -> Result<u32> {
     Ok(n as u32)
 }
 
-/// Given an image, if it has any non-ostree compatible content, return a suitable
-/// warning message.
+/// Generate a suitable warning message from given list of filtered files, if any.
 pub fn image_filtered_content_warning(
-    repo: &ostree::Repo,
-    image: &ImageReference,
+    filtered_files: &Option<MetaFilteredData>,
 ) -> Result<Option<String>> {
     use std::fmt::Write;
 
-    let ostree_ref = ref_for_image(image)?;
-    let rev = repo.require_rev(&ostree_ref)?;
-    let commit_obj = repo.load_commit(rev.as_str())?.0;
-    let commit_meta = &glib::VariantDict::new(Some(&commit_obj.child_value(0)));
-
-    let r = commit_meta
-        .lookup::<MetaFilteredData>(META_FILTERED)?
-        .filter(|v| !v.is_empty())
-        .map(|v| {
-            let mut filtered = HashMap::<&String, u32>::new();
-            for paths in v.values() {
-                for (k, v) in paths {
-                    let e = filtered.entry(k).or_default();
-                    *e += v;
-                }
+    let r = filtered_files.as_ref().map(|v| {
+        let mut filtered = BTreeMap::<&String, u32>::new();
+        for paths in v.values() {
+            for (k, v) in paths {
+                let e = filtered.entry(k).or_default();
+                *e += v;
             }
-            let mut buf = "Image contains non-ostree compatible file paths:".to_string();
-            for (k, v) in filtered {
-                write!(buf, " {k}: {v}").unwrap();
-            }
-            buf
-        });
+        }
+        let mut buf = "Image contains non-ostree compatible file paths:".to_string();
+        for (k, v) in filtered {
+            write!(buf, " {k}: {v}").unwrap();
+        }
+        buf
+    });
     Ok(r)
 }
 

@@ -376,9 +376,7 @@ pub(crate) async fn prepare_for_pull(
 
 #[context("Pulling")]
 pub(crate) async fn pull_from_prepared(
-    repo: &ostree::Repo,
     imgref: &ImageReference,
-    target_imgref: Option<&OstreeImageReference>,
     quiet: bool,
     prog: ProgressWriter,
     mut prepared_image: PreparedImportMeta,
@@ -424,11 +422,9 @@ pub(crate) async fn pull_from_prepared(
     let import = import?;
     let imgref_canonicalized = imgref.clone().canonicalize()?;
     tracing::debug!("Canonicalized image reference: {imgref_canonicalized:#}");
-    let ostree_imgref = &OstreeImageReference::from(imgref_canonicalized);
-    let wrote_imgref = target_imgref.as_ref().unwrap_or(&ostree_imgref);
 
     if let Some(msg) =
-        ostree_container::store::image_filtered_content_warning(repo, &wrote_imgref.imgref)
+        ostree_container::store::image_filtered_content_warning(&import.filtered_files)
             .context("Image content warning")?
     {
         crate::journal::journal_print(libsystemd::logging::Priority::Notice, &msg);
@@ -446,15 +442,9 @@ pub(crate) async fn pull(
 ) -> Result<Box<ImageState>> {
     match prepare_for_pull(repo, imgref, target_imgref).await? {
         PreparedPullResult::AlreadyPresent(existing) => Ok(existing),
-        PreparedPullResult::Ready(prepared_image_meta) => Ok(pull_from_prepared(
-            repo,
-            imgref,
-            target_imgref,
-            quiet,
-            prog,
-            prepared_image_meta,
-        )
-        .await?),
+        PreparedPullResult::Ready(prepared_image_meta) => {
+            Ok(pull_from_prepared(imgref, quiet, prog, prepared_image_meta).await?)
+        }
     }
 }
 

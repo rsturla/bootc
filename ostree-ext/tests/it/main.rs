@@ -1031,7 +1031,7 @@ async fn test_container_chunked() -> Result<()> {
     assert_eq!(store::list_images(fixture.destrepo()).unwrap().len(), 1);
 
     assert!(
-        store::image_filtered_content_warning(fixture.destrepo(), &imgref.imgref)
+        store::image_filtered_content_warning(&import.filtered_files)
             .unwrap()
             .is_none()
     );
@@ -1122,11 +1122,32 @@ r usr/bin/bash bash-v0
 
     // We want to test explicit layer pruning
     imp.disable_gc();
-    let _import = imp.import(prep).await.unwrap();
+    let import = imp.import(prep).await.unwrap();
     assert_eq!(store::list_images(fixture.destrepo()).unwrap().len(), 2);
 
+    assert_eq!(
+        store::image_filtered_content_warning(&import.filtered_files)
+            .unwrap()
+            .unwrap(),
+        "Image contains non-ostree compatible file paths: filtered: 1"
+    );
+
+    // redo it but with the layers already imported and sanity-check that the
+    // merge commit is the same
+    let merge_commit = import.merge_commit;
+    store::remove_image(fixture.destrepo(), &derived_imgref.imgref).unwrap();
+    let mut imp =
+        store::ImageImporter::new(fixture.destrepo(), &derived_imgref, Default::default()).await?;
+    let prep = match imp.prepare().await.unwrap() {
+        store::PrepareResult::AlreadyPresent(_) => panic!("should not be already imported"),
+        store::PrepareResult::Ready(r) => r,
+    };
+    let import = imp.import(prep).await.context("reimport").unwrap();
+    assert_eq!(import.merge_commit, merge_commit);
+
+    // but this time we don't get the warning because we didn't reimport the derived layer
     assert!(
-        store::image_filtered_content_warning(fixture.destrepo(), &derived_imgref.imgref)
+        store::image_filtered_content_warning(&import.filtered_files)
             .unwrap()
             .is_none()
     );
@@ -1225,7 +1246,7 @@ async fn test_container_var_content() -> Result<()> {
         .query_exists(gio::Cancellable::NONE));
 
     assert!(
-        store::image_filtered_content_warning(fixture.destrepo(), &derived_imgref.imgref)
+        store::image_filtered_content_warning(&import.filtered_files)
             .unwrap()
             .is_none()
     );

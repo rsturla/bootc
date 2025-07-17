@@ -906,7 +906,7 @@ async fn container_store(
     }
     let import = import?;
     if let Some(msg) =
-        ostree_container::store::image_filtered_content_warning(repo, &imgref.imgref)?
+        ostree_container::store::image_filtered_content_warning(&import.filtered_files)?
     {
         eprintln!("{msg}")
     }
@@ -1263,7 +1263,6 @@ async fn run_from_opt(opt: Opt) -> Result<()> {
                         ostree::Sysroot::new_default()
                     };
                     sysroot.load(gio::Cancellable::NONE)?;
-                    let repo = &sysroot.repo();
                     let kargs = karg.as_deref();
                     let kargs = kargs.map(|v| {
                         let r: Vec<_> = v.iter().map(|s| s.as_str()).collect();
@@ -1321,10 +1320,8 @@ async fn run_from_opt(opt: Opt) -> Result<()> {
                         Some(options),
                     )
                     .await?;
-                    let wrote_imgref = target_imgref.as_ref().unwrap_or(&imgref);
                     if let Some(msg) = ostree_container::store::image_filtered_content_warning(
-                        repo,
-                        &wrote_imgref.imgref,
+                        &state.filtered_files,
                     )? {
                         eprintln!("{msg}")
                     }
