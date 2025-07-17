@@ -806,7 +806,7 @@ mod tests {
 
         const PREPAREROOT_PATH: &str = "usr/lib/ostree/prepare-root.conf";
         const PREPAREROOT: &str =
-            include_str!("../../baseimage/base/usr/lib/ostree/prepare-root.conf");
+            include_str!("../../../baseimage/base/usr/lib/ostree/prepare-root.conf");
         root.create_dir_all(Utf8Path::new(PREPAREROOT_PATH).parent().unwrap())?;
         root.atomic_write(PREPAREROOT_PATH, PREPAREROOT)?;
 

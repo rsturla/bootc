@@ -1,13 +1,12 @@
 [package]
-name = "bootc"
-# This is a stub, the real version is from the lib crate
-version = "0.0.0"
+name = "system-reinstall-bootc"
+version = "0.1.9"
 edition = "2021"
 license = "MIT OR Apache-2.0"
 repository = "https://github.com/bootc-dev/bootc"
-readme = "README.md"
 publish = false
-default-run = "bootc"
+# For now don't bump this above what is currently shipped in RHEL9.
+rust-version = "1.75.0"
 
 # See https://github.com/coreos/cargo-vendor-filterer
 [package.metadata.vendor-filter]
@@ -15,14 +14,23 @@ default-run = "bootc"
 platforms = ["*-unknown-linux-gnu"]
 
 [dependencies]
-anstream = { workspace = true }
 anyhow = { workspace = true }
-bootc-lib = { version = "1.0", path = "../lib" }
+bootc-mount = { path = "../mount" }
 bootc-utils = { package = "bootc-internal-utils", path = "../utils", version = "0.0.0" }
-tokio = { workspace = true, features = ["macros"] }
+clap = { workspace = true, features = ["derive"] }
+crossterm = "0.29.0"
+dialoguer = "0.11.0"
+indoc = { workspace = true }
 log = "0.4.21"
-owo-colors = { workspace = true }
+openssh-keys = "0.6.4"
+rustix = { workspace = true }
+serde = { workspace = true, features = ["derive"] }
+serde_json = { workspace = true }
+serde_yaml = "0.9.22"
+tempfile = { workspace = true }
 tracing = { workspace = true }
+uzers = "0.12.1"
+which = "7.0.2"
 
 [lints]
 workspace = true
