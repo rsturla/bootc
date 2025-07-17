@@ -7,7 +7,7 @@
 //! In the future, this may also evolve into parsing the tar
 //! stream in Rust, not in C.
 
-use crate::container::Decompressor;
+use crate::generic_decompress::Decompressor;
 use crate::Result;
 use anyhow::{anyhow, Context};
 use camino::{Utf8Component, Utf8Path, Utf8PathBuf};

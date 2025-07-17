@@ -7,7 +7,7 @@
 
 use super::*;
 use crate::chunking::{self, Chunk};
-use crate::container::Decompressor;
+use crate::generic_decompress::Decompressor;
 use crate::logging::system_repo_journal_print;
 use crate::refescape;
 use crate::sysroot::SysrootLock;
