@@ -3,12 +3,13 @@
 //! See <https://github.com/osbuild/bootc-image-builder>
 //!
 
+use std::process::Command;
+
 use anyhow::Result;
+use bootc_utils::CommandRunExt as _;
 use camino::Utf8Path;
 use cap_std_ext::{cap_std::fs::Dir, cmdext::CapStdExtCommandExt};
 use fn_error_context::context;
-
-use crate::task::Task;
 
 /// Handle /etc/containers readonly mount.
 ///
@@ -30,14 +31,12 @@ fn adjust_etc_containers(tempdir: &Dir) -> Result<()> {
     tempdir.create_dir_all("etc-ovl/upper")?;
     tempdir.create_dir("etc-ovl/work")?;
     let opts = format!("lowerdir={etc_containers},workdir=etc-ovl/work,upperdir=etc-ovl/upper");
-    let mut t = Task::new(
-        &format!("Mount transient overlayfs for {etc_containers}"),
-        "mount",
-    )
-    .args(["-t", "overlay", "overlay", "-o", opts.as_str()])
-    .arg(etc_containers);
-    t.cmd.cwd_dir(tempdir.try_clone()?);
-    t.run()?;
+    Command::new("mount")
+        .log_debug()
+        .args(["-t", "overlay", "overlay", "-o", opts.as_str()])
+        .arg(etc_containers)
+        .cwd_dir(tempdir.try_clone()?)
+        .run()?;
     Ok(())
 }
 
@@ -55,10 +54,11 @@ fn propagate_run_osbuild_containers(root: &Dir) -> Result<()> {
     }
     let relative_storage = Utf8Path::new(crate::podman::CONTAINER_STORAGE.trim_start_matches('/'));
     root.create_dir_all(relative_storage)?;
-    Task::new("Creating bind mount for run/osbuild/containers", "mount")
+    Command::new("mount")
+        .log_debug()
         .arg("--rbind")
         .args([osbuild_run_containers, relative_storage])
-        .cwd(root)?
+        .cwd_dir(root.try_clone()?)
         .run()?;
     Ok(())
 }
