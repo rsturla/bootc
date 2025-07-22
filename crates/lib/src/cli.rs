@@ -396,9 +396,7 @@ pub(crate) enum ImageOpts {
         /// The image to pull
         image: String,
     },
-    /// List fetched images stored in the bootc storage.
-    ///
-    /// Note that these are distinct from images stored via e.g. `podman`.
+    /// Wrapper for selected `podman image` subcommands in bootc storage.
     #[clap(subcommand)]
     Cmd(ImageCmdOpts),
 }
