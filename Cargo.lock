@@ -179,13 +179,9 @@ dependencies = [
  "camino",
  "fn-error-context",
  "indoc",
- "libc",
  "regex",
- "rustix 1.0.3",
  "serde",
  "serde_json",
- "tempfile",
- "tokio",
  "tracing",
 ]
 
