@@ -468,6 +468,12 @@ pub(crate) enum InternalsOpts {
         #[clap(long)]
         device: String,
     },
+    /// Test loopback device allocation and cleanup (internal use only)
+    AllocateCleanupLoopback {
+        /// File path to create loopback device for
+        #[clap(long)]
+        file_path: Utf8PathBuf,
+    },
     /// Invoked from ostree-ext to complete an installation.
     BootcInstallCompletion {
         /// Path to the sysroot
@@ -1271,6 +1277,26 @@ async fn run_from_opt(opt: Opt) -> Result<()> {
             }
             InternalsOpts::LoopbackCleanupHelper { device } => {
                 crate::blockdev::run_loopback_cleanup_helper(&device).await
+            }
+            InternalsOpts::AllocateCleanupLoopback { file_path: _ } => {
+                // Create a temporary file for testing
+                let temp_file =
+                    tempfile::NamedTempFile::new().context("Failed to create temporary file")?;
+                let temp_path = temp_file.path();
+
+                // Create a loopback device
+                let loopback = crate::blockdev::LoopbackDevice::new(temp_path)
+                    .context("Failed to create loopback device")?;
+
+                println!("Created loopback device: {}", loopback.path());
+
+                // Close the device to test cleanup
+                loopback
+                    .close()
+                    .context("Failed to close loopback device")?;
+
+                println!("Successfully closed loopback device");
+                Ok(())
             }
             #[cfg(feature = "rhsm")]
             InternalsOpts::PublishRhsmFacts => crate::rhsm::publish_facts(&root).await,
