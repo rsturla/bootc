@@ -103,6 +103,21 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "dcfed56ad506cb2c684a14971b8861fdc3baaaae314b9e5f9bb532cbe3ba7a4f"
 
 [[package]]
+name = "async-compression"
+version = "0.4.27"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ddb939d66e4ae03cee6091612804ba446b12878410cfa17f785f4dd67d4014e8"
+dependencies = [
+ "flate2",
+ "futures-core",
+ "memchr",
+ "pin-project-lite",
+ "tokio",
+ "zstd",
+ "zstd-safe",
+]
+
+[[package]]
 name = "autocfg"
 version = "1.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -525,7 +540,7 @@ checksum = "55b672471b4e9f9e95499ea597ff64941a309b2cdbffcc46f2cc5e2d971fd335"
 [[package]]
 name = "composefs"
 version = "0.3.0"
-source = "git+https://github.com/containers/composefs-rs?rev=d5455222f282200913902f29c66d5f625ca5661f#d5455222f282200913902f29c66d5f625ca5661f"
+source = "git+https://github.com/containers/composefs-rs?rev=28d4721f77f973f0e394d60d6a69d9b39cb38d7f#28d4721f77f973f0e394d60d6a69d9b39cb38d7f"
 dependencies = [
  "anyhow",
  "hex",
@@ -540,6 +555,37 @@ dependencies = [
  "xxhash-rust",
  "zerocopy 0.8.23",
  "zstd",
+]
+
+[[package]]
+name = "composefs-boot"
+version = "0.3.0"
+source = "git+https://github.com/containers/composefs-rs?rev=28d4721f77f973f0e394d60d6a69d9b39cb38d7f#28d4721f77f973f0e394d60d6a69d9b39cb38d7f"
+dependencies = [
+ "anyhow",
+ "composefs",
+ "hex",
+ "regex-automata 0.4.9",
+ "thiserror 2.0.12",
+ "zerocopy 0.8.23",
+]
+
+[[package]]
+name = "composefs-oci"
+version = "0.3.0"
+source = "git+https://github.com/containers/composefs-rs?rev=28d4721f77f973f0e394d60d6a69d9b39cb38d7f#28d4721f77f973f0e394d60d6a69d9b39cb38d7f"
+dependencies = [
+ "anyhow",
+ "async-compression",
+ "composefs",
+ "containers-image-proxy",
+ "hex",
+ "indicatif",
+ "oci-spec",
+ "rustix 1.0.3",
+ "sha2",
+ "tar",
+ "tokio",
 ]
 
 [[package]]
@@ -1247,6 +1293,7 @@ dependencies = [
  "console",
  "number_prefix",
  "portable-atomic",
+ "tokio",
  "unicode-width 0.2.0",
  "web-time",
 ]
@@ -1727,6 +1774,8 @@ dependencies = [
  "clap_mangen",
  "comfy-table",
  "composefs",
+ "composefs-boot",
+ "composefs-oci",
  "containers-image-proxy",
  "flate2",
  "fn-error-context",
