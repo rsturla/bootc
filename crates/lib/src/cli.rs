@@ -1227,7 +1227,8 @@ async fn run_from_opt(opt: Opt) -> Result<()> {
                 FsverityOpts::Enable { path } => {
                     let fd =
                         std::fs::File::open(&path).with_context(|| format!("Reading {path}"))?;
-                    fsverity::enable_verity_raw::<fsverity::Sha256HashValue>(&fd)?;
+                    // Note this is not robust to forks, we're not using the _maybe_copy variant
+                    fsverity::enable_verity_with_retry::<fsverity::Sha256HashValue>(&fd)?;
                     Ok(())
                 }
             },

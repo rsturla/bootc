@@ -65,7 +65,11 @@ fn enable_fsverity_in_objdir(d: &Dir) -> anyhow::Result<()> {
         let enabled =
             composefs::fsverity::measure_verity_opt::<Sha256HashValue>(f.as_fd())?.is_some();
         if !enabled {
-            composefs_fsverity::enable_verity_raw::<Sha256HashValue>(&f)?;
+            // NOTE: We're not using the _with_copy API here because for us it'd require
+            // copying all the metadata too which is mildly tedious.
+            // For main composefs we don't need to care about the per-file metadata
+            // in general which simplifies a lot.
+            composefs_fsverity::enable_verity_with_retry::<Sha256HashValue>(f.as_fd())?;
         }
     }
     Ok(())
