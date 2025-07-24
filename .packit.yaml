@@ -40,9 +40,9 @@ jobs:
       - centos-stream-10-x86_64
       - centos-stream-10-aarch64
       - centos-stream-10-s390x
-      - fedora-41-x86_64
-      - fedora-41-aarch64
-      - fedora-41-s390x
+      - fedora-42-x86_64
+      - fedora-42-aarch64
+      - fedora-42-s390x
       # Sanity check on secondary targets, fewer architectures just
       # because the chance that we break e.g. ppc64le *just* on
       # rawhide is basically nil.
@@ -70,8 +70,6 @@ jobs:
       - centos-stream-9-aarch64
       - centos-stream-10-x86_64
       - centos-stream-10-aarch64
-      - fedora-41-x86_64
-      - fedora-41-aarch64
       - fedora-42-x86_64
       - fedora-42-aarch64
       - fedora-rawhide-x86_64
