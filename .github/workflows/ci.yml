@@ -57,6 +57,21 @@ jobs:
       - uses: actions/checkout@v4
       - name: Build and run container integration tests
         run: sudo just run-container-integration run-container-external-tests
+  container-continuous:
+    if: ${{ !contains(github.event.pull_request.labels.*.name, 'control/skip-ci') }}
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Get a newer podman for heredoc support (from debian testing)
+        run: |
+          set -eux
+          echo 'deb [trusted=yes] https://ftp.debian.org/debian/ testing main' | sudo tee /etc/apt/sources.list.d/testing.list
+          sudo apt update
+          sudo apt install -y crun/testing podman/testing skopeo/testing
+      - name: Installdeps
+        run: sudo apt update && sudo apt install just
+      - uses: actions/checkout@v4
+      - name: Build with continuous repo enabled
+        run: sudo just build --build-arg=continuous_repo=1
   cargo-deny:
     runs-on: ubuntu-latest
     steps:

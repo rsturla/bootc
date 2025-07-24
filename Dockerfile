@@ -8,10 +8,37 @@ ARG base=quay.io/centos-bootc/centos-bootc:stream9
 FROM scratch as src
 COPY . /src
 
+FROM $base as base
+# Set this to anything non-0 to enable https://copr.fedorainfracloud.org/coprs/g/CoreOS/continuous/
+ARG continuous_repo=0
+RUN <<EORUN
+set -xeuo pipefail
+if [ "${continuous_repo}" == 0 ]; then
+  exit 0
+fi
+# Sadly dnf copr enable looks for epel, not centos-stream....
+. /usr/lib/os-release
+case $ID in
+  centos) 
+    curl -L -o /etc/yum.repos.d/continuous.repo https://copr.fedorainfracloud.org/coprs/g/CoreOS/continuous/repo/centos-stream-$VERSION_ID/group_CoreOS-continuous-centos-stream-$VERSION_ID.repo
+  ;;
+  fedora)
+    if rpm -q dnf5 &>/dev/null; then
+      dnf -y install dnf5-plugins
+    fi
+    dnf copr enable -y @CoreOS/continuous
+  ;;
+  *) echo "error: Unsupported OS '$ID'" >&2; exit 1
+  ;;
+esac
+dnf -y upgrade ostree bootupd
+rm -rf /var/cache/* /var/lib/dnf /var/lib/rhsm /var/log/*
+EORUN
+
 # This image installs build deps, pulls in our source code, and installs updated
 # bootc binaries in /out. The intention is that the target rootfs is extracted from /out
 # back into a final stae (without the build deps etc) below.
-FROM $base as build
+FROM base as build
 # This installs our package dependencies, and we want to cache it independently of the rest.
 # Basically we don't want changing a .rs file to blow out the cache of packages. So we only
 # copy files necessary
@@ -42,7 +69,7 @@ RUN --mount=type=cache,target=/build/target --mount=type=cache,target=/var/rooth
     cargo test --locked $unitargs
 
 # The final image that derives from the original base and adds the release binaries
-FROM $base
+FROM base
 # First, create a layer that is our new binaries.
 COPY --from=build /out/ /
 RUN <<EORUN
