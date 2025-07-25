@@ -506,7 +506,13 @@ impl FromStr for MountSpec {
         let mut parts = s.split_ascii_whitespace().fuse();
         let source = parts.next().unwrap_or_default();
         if source.is_empty() {
-            anyhow::bail!("Invalid empty mount specification");
+            tracing::debug!("Empty mount specification");
+            return Ok(Self {
+                source: String::new(),
+                target: String::new(),
+                fstype: Self::AUTO.into(),
+                options: None,
+            });
         }
         let target = parts
             .next()
@@ -890,10 +896,13 @@ async fn install_container(
 
     // Write the entry for /boot to /etc/fstab.  TODO: Encourage OSes to use the karg?
     // Or better bind this with the grub data.
+    // We omit it if the boot mountspec argument was empty
     if let Some(boot) = root_setup.boot.as_ref() {
-        crate::lsm::atomic_replace_labeled(&root, "etc/fstab", 0o644.into(), sepolicy, |w| {
-            writeln!(w, "{}", boot.to_fstab()).map_err(Into::into)
-        })?;
+        if !boot.source.is_empty() {
+            crate::lsm::atomic_replace_labeled(&root, "etc/fstab", 0o644.into(), sepolicy, |w| {
+                writeln!(w, "{}", boot.to_fstab()).map_err(Into::into)
+            })?;
+        }
     }
 
     if let Some(contents) = state.root_ssh_authorized_keys.as_deref() {
@@ -1807,6 +1816,7 @@ pub(crate) async fn install_to_filesystem(
 
     // We support overriding the mount specification for root (i.e. LABEL vs UUID versus
     // raw paths).
+    // We also support an empty specification as a signal to omit any mountspec kargs.
     let root_info = if let Some(s) = fsopts.root_mount_spec {
         RootMountInfo {
             mount_spec: s.to_string(),
@@ -1889,7 +1899,13 @@ pub(crate) async fn install_to_filesystem(
 
     let rootarg = format!("root={}", root_info.mount_spec);
     let mut boot = if let Some(spec) = fsopts.boot_mount_spec {
-        Some(MountSpec::new(&spec, "/boot"))
+        // An empty boot mount spec signals to ommit the mountspec kargs
+        // See https://github.com/bootc-dev/bootc/issues/1441
+        if spec.is_empty() {
+            None
+        } else {
+            Some(MountSpec::new(&spec, "/boot"))
+        }
     } else {
         boot_uuid
             .as_deref()
@@ -1903,12 +1919,23 @@ pub(crate) async fn install_to_filesystem(
     // By default, we inject a boot= karg because things like FIPS compliance currently
     // require checking in the initramfs.
     let bootarg = boot.as_ref().map(|boot| format!("boot={}", &boot.source));
-    let kargs = [rootarg]
-        .into_iter()
-        .chain(root_info.kargs)
-        .chain([RW_KARG.to_string()])
-        .chain(bootarg)
-        .collect::<Vec<_>>();
+
+    // If the root mount spec is empty, we omit the mounts kargs entirely.
+    // https://github.com/bootc-dev/bootc/issues/1441
+    let mut kargs = if root_info.mount_spec.is_empty() {
+        Vec::new()
+    } else {
+        [rootarg]
+            .into_iter()
+            .chain(root_info.kargs)
+            .collect::<Vec<_>>()
+    };
+
+    kargs.push(RW_KARG.to_string());
+
+    if let Some(bootarg) = bootarg {
+        kargs.push(bootarg);
+    }
 
     let skip_finalize =
         matches!(fsopts.replace, Some(ReplaceMode::Alongside)) || fsopts.skip_finalize;
