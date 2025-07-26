@@ -36,6 +36,8 @@ mod containerenv;
 mod install;
 mod kernel;
 
+#[cfg(feature = "grub")]
+pub(crate) mod parsers;
 #[cfg(feature = "rhsm")]
 mod rhsm;
 
