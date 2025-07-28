@@ -28,9 +28,6 @@ jobs:
           fetch-depth: 0
           token: ${{ secrets.GITHUB_TOKEN }}
       
-      - name: Install deps
-        run: ./ci/installdeps.sh
-      
       - name: Mark git checkout as safe
         run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
       
@@ -57,6 +54,10 @@ jobs:
           else
             echo "should_release=false" >> $GITHUB_OUTPUT
           fi
+      
+      - name: Install deps
+        if: steps.check_schedule.outputs.should_release == 'true'
+        run: ./ci/installdeps.sh
       
       - name: Import GPG key
         if: steps.check_schedule.outputs.should_release == 'true'
