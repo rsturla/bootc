@@ -1347,7 +1347,7 @@ async fn install_with_sysroot(
 ) -> Result<()> {
     // And actually set up the container in that root, returning a deployment and
     // the aleph state (see below).
-    let (_deployment, aleph) = install_container(state, rootfs, &sysroot, has_ostree).await?;
+    let (deployment, aleph) = install_container(state, rootfs, &sysroot, has_ostree).await?;
     // Write the aleph data that captures the system state at the time of provisioning for aid in future debugging.
     rootfs
         .physical_root
@@ -1355,6 +1355,8 @@ async fn install_with_sysroot(
             anyhow::Ok(aleph.to_canon_json_writer(f)?)
         })
         .context("Writing aleph version")?;
+
+    let deployment_path = sysroot.deployment_dirpath(&deployment);
 
     if cfg!(target_arch = "s390x") {
         // TODO: Integrate s390x support into install_via_bootupd
@@ -1364,6 +1366,7 @@ async fn install_with_sysroot(
             &rootfs.device_info,
             &rootfs.physical_root_path,
             &state.config_opts,
+            &deployment_path.as_str(),
         )?;
     }
     tracing::debug!("Installed bootloader");

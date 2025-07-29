@@ -14,16 +14,19 @@ pub(crate) fn install_via_bootupd(
     device: &PartitionTable,
     rootfs: &Utf8Path,
     configopts: &crate::install::InstallConfigOpts,
+    deployment_path: &str,
 ) -> Result<()> {
     let verbose = std::env::var_os("BOOTC_BOOTLOADER_DEBUG").map(|_| "-vvvv");
     // bootc defaults to only targeting the platform boot method.
     let bootupd_opts = (!configopts.generic_image).then_some(["--update-firmware", "--auto"]);
 
+    let srcroot = rootfs.join(deployment_path);
     let devpath = device.path();
     let args = ["backend", "install", "--write-uuid"]
         .into_iter()
         .chain(verbose)
         .chain(bootupd_opts.iter().copied().flatten())
+        .chain(["--src-root", srcroot.as_str()])
         .chain(["--device", devpath.as_str(), rootfs.as_str()]);
     Task::new("Running bootupctl to install bootloader", "bootupctl")
         .args(args)
