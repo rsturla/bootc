@@ -95,12 +95,12 @@ of at build time. If `/etc` is persistent, this can avoid uid/gid drift (but
 in the general case it does mean that uid/gid allocation can
 depend on how a specific machine was upgraded over time).
 
-Note that the default sysusers design is that users are allocated client
-side (per machine). Avoid trying to have non-root owned files managed
-by sysusers inside your image, especially underneath `/usr`. Aside from
-set{uid,gid} binaries (which should themselves be strongly avoided) there's
-really no good use case for having non-root owned files in `/usr` or other
-runtime immutable directories.
+Note that the default `sysusers` design is that users are allocated on the client
+side (per machine). Avoid having non-root owned files managed by `sysusers`
+inside your image, especially underneath `/usr`. With the exception of
+`setuid` or `setgid` binaries (which should also be strongly avoided), there is
+generally no valid reason for having non-root owned files in `/usr` or other
+runtime-immutable directories.
 
 #### User and group home directories and `/var`
 
