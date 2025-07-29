@@ -118,7 +118,7 @@ pub(crate) fn pull_if_not_present(image: &str) -> Result<()> {
         println!("Image {} is not present locally, pulling it now.", image);
         println!();
         pull_image_command(image)
-            .run_with_cmd_context()
+            .run_inherited_with_cmd_context()
             .context(format!("pulling image {}", image))?;
     }
 
@@ -150,7 +150,7 @@ pub(crate) fn ensure_podman_installed() -> Result<()> {
     );
 
     Command::new(podman_install_script_path())
-        .run_with_cmd_context()
+        .run_inherited_with_cmd_context()
         .context("installing podman")?;
 
     // Make sure the installation was actually successful

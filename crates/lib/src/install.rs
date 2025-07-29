@@ -670,7 +670,7 @@ async fn initialize_ostree_root(
         Command::new("ostree")
             .args(["config", "--repo", "ostree/repo", "set", k, v])
             .cwd_dir(rootfs_dir.try_clone()?)
-            .run()?;
+            .run_capture_stderr()?;
     }
 
     let sysroot = {

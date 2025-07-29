@@ -138,7 +138,7 @@ pub(crate) fn ensure_floating_c_storage_initialized() {
     if let Err(e) = Command::new("podman")
         .args(["system", "info"])
         .stdout(Stdio::null())
-        .run()
+        .run_capture_stderr()
     {
         // Out of conservatism we don't make this operation fatal right now.
         // If something went wrong, then we'll probably fail on a later operation
@@ -220,7 +220,7 @@ impl Storage {
             new_podman_cmd_in(&storage_root, &run)?
                 .stdout(Stdio::null())
                 .arg("images")
-                .run()
+                .run_capture_stderr()
                 .context("Initializing images")?;
             Self::ensure_labeled(&storage_root, sepolicy)?;
             drop(storage_root);
@@ -273,7 +273,7 @@ impl Storage {
         AsyncCommand::from(cmd)
             .status()
             .await?
-            .check_status(stderr)?;
+            .check_status_with_stderr(stderr)?;
         // Spawn a helper thread to avoid blocking the main thread
         // parsing JSON.
         tokio::task::spawn_blocking(move || -> Result<_> {

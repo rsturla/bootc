@@ -14,24 +14,53 @@ pub trait CommandRunExt {
     /// Log (at debug level) the full child commandline.
     fn log_debug(&mut self) -> &mut Self;
 
-    /// Execute the child process.
-    fn run(&mut self) -> Result<()>;
+    /// Execute the child process and wait for it to exit.
+    ///
+    /// # Streams
+    ///
+    /// - stdin, stdout, stderr: All inherited
+    ///
+    /// # Errors
+    ///
+    /// An non-successful exit status will result in an error.
+    fn run_inherited(&mut self) -> Result<()>;
 
-    /// Execute the child process. In case of failure, include the command and its arguments in the
-    /// error context
-    fn run_with_cmd_context(&mut self) -> Result<()>;
+    /// Execute the child process and wait for it to exit.
+    ///
+    /// # Streams
+    ///
+    /// - stdin, stdout: Inherited
+    /// - stderr: captured and included in error
+    ///
+    /// # Errors
+    ///
+    /// An non-successful exit status will result in an error.
+    fn run_capture_stderr(&mut self) -> Result<()>;
+
+    /// Execute the child process and wait for it to exit; the
+    /// complete argument list will be included in the error.
+    ///
+    /// # Streams
+    ///
+    /// - stdin, stdout, stderr: All nherited
+    ///
+    /// # Errors
+    ///
+    /// An non-successful exit status will result in an error.
+    fn run_inherited_with_cmd_context(&mut self) -> Result<()>;
 
     /// Ensure the child does not outlive the parent.
     fn lifecycle_bind(&mut self) -> &mut Self;
 
-    /// Execute the child process and capture its output. This uses `run` internally
+    /// Execute the child process and capture its output. This uses `run_capture_stderr` internally
     /// and will return an error if the child process exits abnormally.
     fn run_get_output(&mut self) -> Result<Box<dyn std::io::BufRead>>;
 
     /// Execute the child process and capture its output as a string.
+    /// This uses `run_capture_stderr` internally.
     fn run_get_string(&mut self) -> Result<String>;
 
-    /// Execute the child process, parsing its stdout as JSON. This uses `run` internally
+    /// Execute the child process, parsing its stdout as JSON. This uses `run_capture_stderr` internally
     /// and will return an error if the child process exits abnormally.
     fn run_and_parse_json<T: serde::de::DeserializeOwned>(&mut self) -> Result<T>;
 
@@ -45,7 +74,13 @@ pub trait ExitStatusExt {
     /// Note that we intentionally *don't* include the command string
     /// in the output; we leave it to the caller to add that if they want,
     /// as it may be verbose.
-    fn check_status(&mut self, stderr: std::fs::File) -> Result<()>;
+    fn check_status(&mut self) -> Result<()>;
+
+    /// If the exit status signals it was not successful, return an error;
+    /// this also includes the contents of `stderr`.
+    ///
+    /// Otherwise this is the same as [`Self::check_status`].
+    fn check_status_with_stderr(&mut self, stderr: std::fs::File) -> Result<()>;
 }
 
 /// Parse the last chunk (e.g. 1024 bytes) from the provided file,
@@ -81,7 +116,13 @@ fn last_utf8_content_from_file(mut f: std::fs::File) -> String {
 }
 
 impl ExitStatusExt for std::process::ExitStatus {
-    fn check_status(&mut self, stderr: std::fs::File) -> Result<()> {
+    fn check_status(&mut self) -> Result<()> {
+        if self.success() {
+            return Ok(());
+        }
+        anyhow::bail!(format!("Subprocess failed: {self:?}"))
+    }
+    fn check_status_with_stderr(&mut self, stderr: std::fs::File) -> Result<()> {
         let stderr_buf = last_utf8_content_from_file(stderr);
         if self.success() {
             return Ok(());
@@ -91,12 +132,17 @@ impl ExitStatusExt for std::process::ExitStatus {
 }
 
 impl CommandRunExt for Command {
+    fn run_inherited(&mut self) -> Result<()> {
+        tracing::trace!("exec: {self:?}");
+        self.status()?.check_status()
+    }
+
     /// Synchronously execute the child, and return an error if the child exited unsuccessfully.
-    fn run(&mut self) -> Result<()> {
+    fn run_capture_stderr(&mut self) -> Result<()> {
         let stderr = tempfile::tempfile()?;
         self.stderr(stderr.try_clone()?);
         tracing::trace!("exec: {self:?}");
-        self.status()?.check_status(stderr)
+        self.status()?.check_status_with_stderr(stderr)
     }
 
     #[allow(unsafe_code)]
@@ -124,7 +170,7 @@ impl CommandRunExt for Command {
     fn run_get_output(&mut self) -> Result<Box<dyn std::io::BufRead>> {
         let mut stdout = tempfile::tempfile()?;
         self.stdout(stdout.try_clone()?);
-        self.run()?;
+        self.run_capture_stderr()?;
         stdout.seek(std::io::SeekFrom::Start(0)).context("seek")?;
         Ok(Box::new(std::io::BufReader::new(stdout)))
     }
@@ -142,7 +188,7 @@ impl CommandRunExt for Command {
         serde_json::from_reader(output).map_err(Into::into)
     }
 
-    fn run_with_cmd_context(&mut self) -> Result<()> {
+    fn run_inherited_with_cmd_context(&mut self) -> Result<()> {
         self.status()?
             .success()
             .then_some(())
@@ -176,7 +222,7 @@ impl AsyncCommandRunExt for tokio::process::Command {
     async fn run(&mut self) -> Result<()> {
         let stderr = tempfile::tempfile()?;
         self.stderr(stderr.try_clone()?);
-        self.status().await?.check_status(stderr)
+        self.status().await?.check_status_with_stderr(stderr)
     }
 }
 
@@ -185,15 +231,36 @@ mod tests {
     use super::*;
 
     #[test]
-    fn command_run_ext() {
+    fn command_run_inherited() {
+        // Test successful command
+        Command::new("true").run_inherited().unwrap();
+
+        // Test failed command
+        assert!(Command::new("false").run_inherited().is_err());
+
+        // Test that stderr is not captured (just check error format)
+        let e = Command::new("/bin/sh")
+            .args(["-c", "echo should-not-be-captured 1>&2; exit 1"])
+            .run_inherited()
+            .err()
+            .unwrap();
+        // Should not contain the stderr message since it's inherited
+        assert_eq!(
+            e.to_string(),
+            "Subprocess failed: ExitStatus(unix_wait_status(256))"
+        );
+    }
+
+    #[test]
+    fn command_run_capture_stderr() {
         // The basics
-        Command::new("true").run().unwrap();
-        assert!(Command::new("false").run().is_err());
+        Command::new("true").run_capture_stderr().unwrap();
+        assert!(Command::new("false").run_capture_stderr().is_err());
 
         // Verify we capture stderr
         let e = Command::new("/bin/sh")
             .args(["-c", "echo expected-this-oops-message 1>&2; exit 1"])
-            .run()
+            .run_capture_stderr()
             .err()
             .unwrap();
         similar_asserts::assert_eq!(
@@ -207,13 +274,56 @@ mod tests {
                 "-c",
                 r"echo -e 'expected\xf5\x80\x80\x80\x80-foo\xc0bar\xc0\xc0' 1>&2; exit 1",
             ])
-            .run()
+            .run_capture_stderr()
             .err()
             .unwrap();
         similar_asserts::assert_eq!(
             e.to_string(),
             "Subprocess failed: ExitStatus(unix_wait_status(256))\nexpected�����-foo�bar��\n"
         );
+    }
+
+    #[test]
+    fn exit_status_check_status() {
+        use std::process::Command;
+
+        // Test successful exit status
+        let mut success_status = Command::new("true").status().unwrap();
+        success_status.check_status().unwrap();
+
+        // Test failed exit status
+        let mut fail_status = Command::new("false").status().unwrap();
+        let e = fail_status.check_status().err().unwrap();
+        assert_eq!(
+            e.to_string(),
+            "Subprocess failed: ExitStatus(unix_wait_status(256))"
+        );
+    }
+
+    #[test]
+    fn exit_status_check_status_with_stderr() {
+        use std::io::Write;
+        use std::process::Command;
+
+        // Test successful exit status
+        let mut success_status = Command::new("true").status().unwrap();
+        let temp_stderr = tempfile::tempfile().unwrap();
+        success_status
+            .check_status_with_stderr(temp_stderr)
+            .unwrap();
+
+        // Test failed exit status with stderr content
+        let mut fail_status = Command::new("false").status().unwrap();
+        let mut temp_stderr = tempfile::tempfile().unwrap();
+        write!(temp_stderr, "test error message").unwrap();
+        let e = fail_status
+            .check_status_with_stderr(temp_stderr)
+            .err()
+            .unwrap();
+        assert!(e
+            .to_string()
+            .contains("Subprocess failed: ExitStatus(unix_wait_status(256))"));
+        assert!(e.to_string().contains("test error message"));
     }
 
     #[test]

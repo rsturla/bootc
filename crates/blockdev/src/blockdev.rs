@@ -322,7 +322,9 @@ impl LoopbackDevice {
             let _ = cleanup_handle.child.kill();
         }
 
-        Command::new("losetup").args(["-d", dev.as_str()]).run()
+        Command::new("losetup")
+            .args(["-d", dev.as_str()])
+            .run_capture_stderr()
     }
 
     /// Consume this device, unmounting it.

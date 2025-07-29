@@ -55,12 +55,12 @@ fn run() -> Result<()> {
     prompt::temporary_developer_protection_prompt()?;
 
     reinstall_podman_command
-        .run_with_cmd_context()
+        .run_inherited_with_cmd_context()
         .context("running reinstall command")?;
 
     prompt::reboot()?;
 
-    std::process::Command::new("reboot").run()?;
+    std::process::Command::new("reboot").run_capture_stderr()?;
 
     Ok(())
 }

@@ -769,7 +769,7 @@ impl Fixture {
                 let _ = Command::new("ostree")
                     .arg(format!("--repo={}", self.path.join("src/repo")))
                     .args(["ls", "-X", "-C", "-R", commit.as_str()])
-                    .run();
+                    .run_capture_stderr();
             });
         }
         assert_eq!(CONTENTS_CHECKSUM_V0, content_checksum.as_str());

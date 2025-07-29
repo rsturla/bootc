@@ -178,5 +178,5 @@ pub(crate) async fn imgcmd_entrypoint(
     let mut cmd = storage.new_image_cmd()?;
     cmd.arg(arg);
     cmd.args(args);
-    cmd.run()
+    cmd.run_capture_stderr()
 }
