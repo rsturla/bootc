@@ -4,7 +4,6 @@
 //! to provide a fully "container native" tool for using
 //! bootable container images.
 
-mod bls_config;
 pub(crate) mod bootc_kargs;
 mod boundimage;
 mod cfsctl;
@@ -43,6 +42,8 @@ mod kernel_cmdline;
 pub(crate) mod parsers;
 #[cfg(feature = "rhsm")]
 mod rhsm;
+
+mod parsers;
 
 // Re-export blockdev crate for internal use
 pub(crate) use bootc_blockdev as blockdev;

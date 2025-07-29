@@ -57,7 +57,6 @@ use ostree_ext::composefs_oci::{
     image::create_filesystem as create_composefs_filesystem, pull as composefs_oci_pull,
 };
 use ostree_ext::container::deploy::ORIGIN_CONTAINER;
-use ostree_ext::oci_spec;
 use ostree_ext::ostree;
 use ostree_ext::ostree_prepareroot::{ComposefsState, Tristate};
 use ostree_ext::prelude::Cast;
@@ -74,7 +73,6 @@ use serde::{Deserialize, Serialize};
 
 #[cfg(feature = "install-to-disk")]
 use self::baseline::InstallBlockDeviceOpts;
-use crate::bls_config::{parse_bls_config, BLSConfig};
 use crate::boundimage::{BoundImage, ResolvedBoundImage};
 use crate::composefs_consts::{
     BOOT_LOADER_ENTRIES, COMPOSEFS_CMDLINE, COMPOSEFS_STAGED_DEPLOYMENT_FNAME,
@@ -89,6 +87,7 @@ use crate::deploy::{
 };
 use crate::kernel_cmdline::Cmdline;
 use crate::lsm;
+use crate::parsers::bls_config::{parse_bls_config, BLSConfig};
 use crate::parsers::grub_menuconfig::MenuEntry;
 use crate::progress_jsonl::ProgressWriter;
 use crate::spec::ImageReference;
@@ -1536,8 +1535,11 @@ fn get_booted_bls() -> Result<BLSConfig> {
 
         let bls = parse_bls_config(&std::fs::read_to_string(&entry.path())?)?;
 
-        // TODO clean this up
-        if bls.options.contains(booted.as_ref()) {
+        let Some(opts) = &bls.options else {
+            anyhow::bail!("options not found in bls config")
+        };
+
+        if opts.contains(booted.as_ref()) {
             return Ok(bls);
         }
     }
@@ -1747,18 +1749,18 @@ pub(crate) fn setup_composefs_bls_boot(
             let boot_digest = compute_boot_digest(usr_lib_modules_vmlinuz, &repo)
                 .context("Computing boot digest")?;
 
-            let mut bls_config = BLSConfig {
-                title: Some(id_hex.clone()),
-                version: 1,
-                linux: format!("/boot/{id_hex}/vmlinuz"),
-                initrd: format!("/boot/{id_hex}/initrd"),
-                options: cmdline_refs,
-                extra: HashMap::new(),
-            };
+            let mut bls_config = BLSConfig::default();
+            bls_config.title = Some(id_hex.clone());
+            bls_config.sort_key = Some("1".into());
+            bls_config.machine_id = None;
+            bls_config.linux = format!("/boot/{id_hex}/vmlinuz");
+            bls_config.initrd = vec![format!("/boot/{id_hex}/initrd")];
+            bls_config.options = Some(cmdline_refs);
+            bls_config.extra = HashMap::new();
 
             if let Some(symlink_to) = find_vmlinuz_initrd_duplicates(&boot_digest)? {
                 bls_config.linux = format!("/boot/{symlink_to}/vmlinuz");
-                bls_config.initrd = format!("/boot/{symlink_to}/initrd");
+                bls_config.initrd = vec![format!("/boot/{symlink_to}/initrd")];
             } else {
                 write_bls_boot_entries_to_disk(&boot_dir, id, usr_lib_modules_vmlinuz, &repo)?;
             }
@@ -1769,7 +1771,7 @@ pub(crate) fn setup_composefs_bls_boot(
 
     let (entries_path, booted_bls) = if is_upgrade {
         let mut booted_bls = get_booted_bls()?;
-        booted_bls.version = 0; // entries are sorted by their filename in reverse order
+        booted_bls.sort_key = Some("0".into()); // entries are sorted by their filename in reverse order
 
         // This will be atomically renamed to 'loader/entries' on shutdown/reboot
         (
@@ -1787,13 +1789,15 @@ pub(crate) fn setup_composefs_bls_boot(
             .with_context(|| format!("Opening {entries_path}"))?;
 
     loader_entries_dir.atomic_write(
-        format!("bootc-composefs-{}.conf", bls_config.version),
+        // SAFETY: We set sort_key above
+        format!("bootc-composefs-{}.conf", bls_config.sort_key.as_ref().unwrap()),
         bls_config.to_string().as_bytes(),
     )?;
 
     if let Some(booted_bls) = booted_bls {
         loader_entries_dir.atomic_write(
-            format!("bootc-composefs-{}.conf", booted_bls.version),
+            // SAFETY: We set sort_key above
+            format!("bootc-composefs-{}.conf", booted_bls.sort_key.as_ref().unwrap()),
             booted_bls.to_string().as_bytes(),
         )?;
     }
