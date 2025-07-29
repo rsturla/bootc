@@ -8,7 +8,7 @@
 | Type | Name | Since | Website | Use-Case |
 |:-|:-|:-|:-|:-|
 Vendor | Red Hat | 2024 | https://redhat.com | Image Based Linux 
-End-User | HeliumOS | 2024 | https://www.heliumos.org/ | An atomic desktop operating system for your devices
+Vendor | HeliumOS | 2024 | https://www.heliumos.org/ | An atomic desktop operating system for your devices
 
 # bootc Adopters (indirect, via ostree)
 
