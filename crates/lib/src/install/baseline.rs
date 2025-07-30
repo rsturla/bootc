@@ -152,7 +152,7 @@ pub(crate) fn udev_settle() -> Result<()> {
     // our way out of this.
     std::thread::sleep(std::time::Duration::from_millis(200));
 
-    let st = super::run_in_host_mountns("udevadm")
+    let st = super::run_in_host_mountns("udevadm")?
         .arg("settle")
         .status()?;
     if !st.success() {

@@ -92,7 +92,8 @@ pub(crate) fn selinux_ensure_install() -> Result<bool> {
     // to match that of /usr/bin/ostree, and then re-exec.  This is really a gross
     // hack; we can't always rely on https://github.com/fedora-selinux/selinux-policy/pull/1500/commits/67eb283c46d35a722636d749e5b339615fe5e7f5
     let mut tmpf = tempfile::NamedTempFile::new()?;
-    let mut src = std::fs::File::open("/proc/self/exe")?;
+    let srcpath = std::env::current_exe()?;
+    let mut src = std::fs::File::open(&srcpath)?;
     let meta = src.metadata()?;
     std::io::copy(&mut src, &mut tmpf).context("Copying self to tempfile for selinux re-exec")?;
     tmpf.as_file_mut()
@@ -107,6 +108,7 @@ pub(crate) fn selinux_ensure_install() -> Result<bool> {
 
     let mut cmd = Command::new(&tmpf);
     cmd.env(guardenv, tmpf);
+    cmd.env(bootc_utils::reexec::ORIG, srcpath);
     cmd.args(std::env::args_os().skip(1));
     cmd.log_debug();
     Err(anyhow::Error::msg(cmd.exec()).context("execve"))

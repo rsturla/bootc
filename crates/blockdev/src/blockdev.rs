@@ -1,7 +1,6 @@
 use std::collections::HashMap;
 use std::env;
 use std::path::Path;
-use std::path::PathBuf;
 use std::process::{Command, Stdio};
 use std::sync::OnceLock;
 
@@ -247,7 +246,7 @@ impl LoopbackDevice {
     /// if the parent process dies unexpectedly
     fn spawn_cleanup_helper(device_path: &str) -> Result<LoopbackCleanupHandle> {
         // Try multiple strategies to find the bootc binary
-        let bootc_path = Self::find_bootc_binary()
+        let bootc_path = bootc_utils::reexec::executable_path()
             .context("Failed to locate bootc binary for cleanup helper")?;
 
         // Create the helper process
@@ -268,44 +267,6 @@ impl LoopbackDevice {
             .context("Failed to spawn loopback cleanup helper")?;
 
         Ok(LoopbackCleanupHandle { child })
-    }
-
-    /// Find the bootc binary using multiple strategies
-    fn find_bootc_binary() -> Result<PathBuf> {
-        // Strategy 1: Try /proc/self/exe (works in most cases)
-        if let Ok(exe_path) = std::fs::read_link("/proc/self/exe") {
-            if exe_path.exists() {
-                return Ok(exe_path);
-            } else {
-                tracing::warn!("/proc/self/exe points to non-existent path: {:?}", exe_path);
-            }
-        } else {
-            tracing::warn!("Failed to read /proc/self/exe");
-        }
-
-        // Strategy 2: Try argv[0] from std::env
-        if let Some(argv0) = std::env::args().next() {
-            let argv0_path = PathBuf::from(argv0);
-            if argv0_path.is_absolute() && argv0_path.exists() {
-                return Ok(argv0_path);
-            }
-            // If it's relative, try to resolve it
-            if let Ok(canonical) = argv0_path.canonicalize() {
-                return Ok(canonical);
-            }
-        }
-
-        // Strategy 3: Try common installation paths
-        let common_paths = ["/usr/bin/bootc", "/usr/local/bin/bootc"];
-
-        for path in &common_paths {
-            let path_buf = PathBuf::from(path);
-            if path_buf.exists() {
-                return Ok(path_buf);
-            }
-        }
-
-        anyhow::bail!("Could not locate bootc binary using any available strategy")
     }
 
     // Shared backend for our `close` and `drop` implementations.
