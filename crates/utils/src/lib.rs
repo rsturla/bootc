@@ -14,3 +14,5 @@ mod tracing_util;
 pub use tracing_util::*;
 /// Re-execute the current process
 pub mod reexec;
+mod result_ext;
+pub use result_ext::*;

@@ -17,7 +17,7 @@ use ostree::{gio, glib};
 
 use crate::keyfileext::KeyFileExt;
 use crate::ostree_manual;
-use crate::utils::ResultExt;
+use bootc_utils::ResultExt;
 
 /// The relative path to ostree-prepare-root's config.
 pub const CONF_PATH: &str = "ostree/prepare-root.conf";
