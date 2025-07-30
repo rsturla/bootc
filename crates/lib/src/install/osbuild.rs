@@ -36,7 +36,7 @@ fn adjust_etc_containers(tempdir: &Dir) -> Result<()> {
         .args(["-t", "overlay", "overlay", "-o", opts.as_str()])
         .arg(etc_containers)
         .cwd_dir(tempdir.try_clone()?)
-        .run()?;
+        .run_capture_stderr()?;
     Ok(())
 }
 
@@ -59,7 +59,7 @@ fn propagate_run_osbuild_containers(root: &Dir) -> Result<()> {
         .arg("--rbind")
         .args([osbuild_run_containers, relative_storage])
         .cwd_dir(root.try_clone()?)
-        .run()?;
+        .run_capture_stderr()?;
     Ok(())
 }
 

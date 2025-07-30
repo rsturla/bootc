@@ -119,7 +119,7 @@ pub(crate) fn spawn_editor(tmpf: &tempfile::NamedTempFile) -> Result<()> {
         .args(editor_args)
         .arg(tmpf.path())
         .lifecycle_bind()
-        .run()
+        .run_inherited()
         .with_context(|| format!("Invoking editor {editor} failed"))
 }
 

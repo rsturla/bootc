@@ -152,7 +152,7 @@ fn bind_from_host(
             .args(["-m", "-t", "1", "--", "mount", "--bind"])
             .arg(src)
             .arg(&target)
-            .run()?;
+            .run_capture_stderr()?;
         Ok(())
     }
 

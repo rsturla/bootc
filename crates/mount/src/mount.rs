@@ -117,7 +117,7 @@ pub fn is_source_mounted(path: &str, mounted_fs: &Filesystem) -> bool {
 pub fn mount(dev: &str, target: &Utf8Path) -> Result<()> {
     Command::new("mount")
         .args([dev, target.as_str()])
-        .run_with_cmd_context()
+        .run_inherited_with_cmd_context()
 }
 
 /// If the fsid of the passed path matches the fsid of the same path rooted
