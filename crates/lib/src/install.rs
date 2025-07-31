@@ -914,11 +914,11 @@ async fn install_container(
 }
 
 /// Run a command in the host mount namespace
-pub(crate) fn run_in_host_mountns(cmd: &str) -> Command {
-    let mut c = Command::new("/proc/self/exe");
+pub(crate) fn run_in_host_mountns(cmd: &str) -> Result<Command> {
+    let mut c = Command::new(bootc_utils::reexec::executable_path()?);
     c.lifecycle_bind()
         .args(["exec-in-host-mount-namespace", cmd]);
-    c
+    Ok(c)
 }
 
 #[context("Re-exec in host mountns")]

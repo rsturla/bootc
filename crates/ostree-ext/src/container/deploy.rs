@@ -152,7 +152,7 @@ pub async fn deploy(
 
             // Note that the sysroot is provided as `.`  but we use cwd_dir to
             // make the process current working directory the sysroot.
-            let st = std::process::Command::new("/proc/self/exe")
+            let st = std::process::Command::new(std::env::current_exe()?)
                 .args(["internals", "bootc-install-completion", ".", stateroot])
                 .cwd_dir(sysroot_dir.try_clone()?)
                 .lifecycle_bind()

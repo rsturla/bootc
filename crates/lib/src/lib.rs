@@ -21,7 +21,6 @@ pub(crate) mod metadata;
 mod podman;
 mod progress_jsonl;
 mod reboot;
-mod reexec;
 pub mod spec;
 mod status;
 mod store;
