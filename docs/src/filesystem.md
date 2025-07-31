@@ -213,6 +213,54 @@ More on prepare-root: <https://ostreedev.github.io/ostree/man/ostree-prepare-roo
 
 Note that regenerating the initramfs is required when changing this file.
 
+## Dynamic mountpoints with transient-ro
+
+The `transient-ro` option allows privileged users to create dynamic toplevel mountpoints
+at runtime while keeping the filesystem read-only by default. This is particularly useful for
+applications that need to bind mount host paths that may be platform-specific or dynamic.
+
+### Use cases
+
+This feature addresses scenarios where:
+
+- Applications need to bind mount host directories that match the host's absolute paths
+- Platform-specific mountpoints are required (e.g., `/Users` on macOS)
+- Dynamic mountpoints need to be created after deployment but before application startup
+- The filesystem should remain read-only for regular processes
+
+### Configuration
+
+To enable this feature, add the following to `/usr/lib/ostree/prepare-root.conf`:
+
+```toml
+[root]
+transient-ro = true
+```
+
+### How it works
+
+When `transient-ro=true` is set:
+
+1. The overlayfs upper directory is mounted read-only by default
+2. Privileged processes can remount it as writable only in a new mount namespace, and perform arbitrary changes there, such as creating new toplevel mountpoints
+3. These mountpoints persist for the current boot but do not survive reboots or upgrades
+4. Regular processes continue to see a read-only filesystem
+
+A privileged process can achieve this using standard Linux commands. For example:
+
+```bash
+# unshare -m -- /bin/sh -c 'mount -o remount,rw / && mkdir /new-mountpoint'
+```
+
+### Example: Podman machine integration
+
+A common use case is with `podman machine` on macOS, where the VM needs to bind mount
+host paths like `/Users/username` into the VM. With `transient-ro`, the system can:
+
+1. Create the `/Users` directory dynamically at runtime
+2. Bind mount the host's `/Users` directory to the VM's `/Users`
+3. Keep the rest of the filesystem read-only for security
+
 ## Enabling transient etc
 
 The default (per above) is to have `/etc` persist. If however you do
