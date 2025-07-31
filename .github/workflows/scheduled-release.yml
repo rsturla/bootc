@@ -48,8 +48,10 @@ jobs:
           
           echo "Days since last release: $DAYS_SINCE_RELEASE"
           
-          # Release if it's been at least 21 days (3 weeks)
-          if [ $DAYS_SINCE_RELEASE -ge 21 ]; then
+          # Release if it's been at least 19 days
+          # This allows a couple days of buffer
+          # in case the previous release didn't happen immediately
+          if [ $DAYS_SINCE_RELEASE -ge 19 ]; then
             echo "should_release=true" >> $GITHUB_OUTPUT
           else
             echo "should_release=false" >> $GITHUB_OUTPUT
