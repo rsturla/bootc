@@ -19,6 +19,7 @@ use ostree::gio;
 use ostree_container::store::PrepareResult;
 use ostree_ext::composefs::fsverity;
 use ostree_ext::composefs::fsverity::FsVerityHashValue;
+use ostree_ext::composefs::splitstream::SplitStreamWriter;
 use ostree_ext::container as ostree_container;
 use ostree_ext::container_utils::ostree_booted;
 use ostree_ext::keyfileext::KeyFileExt;
@@ -462,6 +463,8 @@ pub(crate) enum InternalsOpts {
         #[clap(allow_hyphen_values = true)]
         args: Vec<OsString>,
     },
+    /// Ensure that a composefs repository is initialized
+    TestComposefs,
     /// Loopback device cleanup helper (internal use only)
     LoopbackCleanupHelper {
         /// Device path to clean up
@@ -1225,6 +1228,18 @@ async fn run_from_opt(opt: Opt) -> Result<()> {
                         .chain(args),
                 )
                 .await
+            }
+            InternalsOpts::TestComposefs => {
+                // This is a stub to be replaced
+                let storage = get_storage().await?;
+                let cfs = storage.get_ensure_composefs()?;
+                let testdata = b"some test data";
+                let testdata_digest = openssl::sha::sha256(testdata);
+                let mut w = SplitStreamWriter::new(&cfs, None, Some(testdata_digest));
+                w.write_inline(testdata);
+                let object = cfs.write_stream(w, Some("testobject"))?.to_hex();
+                assert_eq!(object, "5d94ceb0b2bb3a78237e0a74bc030a262239ab5f47754a5eb2e42941056b64cb21035d64a8f7c2f156e34b820802fa51884de2b1f7dc3a41b9878fc543cd9b07");
+                Ok(())
             }
             // We don't depend on fsverity-utils today, so re-expose some helpful CLI tools.
             InternalsOpts::Fsverity(args) => match args {

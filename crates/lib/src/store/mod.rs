@@ -1,18 +1,20 @@
 use std::cell::OnceCell;
 use std::env;
 use std::ops::Deref;
+use std::sync::Arc;
 
 use anyhow::{Context, Result};
 use cap_std_ext::cap_std;
-use cap_std_ext::cap_std::fs::Dir;
+use cap_std_ext::cap_std::fs::{Dir, DirBuilder, DirBuilderExt as _};
 use cap_std_ext::dirext::CapStdExtDirExt;
 use clap::ValueEnum;
 use fn_error_context::context;
 
 use ostree_ext::container::OstreeImageReference;
 use ostree_ext::keyfileext::KeyFileExt;
-use ostree_ext::ostree;
 use ostree_ext::sysroot::SysrootLock;
+use ostree_ext::{composefs, ostree};
+use rustix::fs::Mode;
 
 use crate::lsm;
 use crate::spec::ImageStatus;
@@ -20,14 +22,37 @@ use crate::utils::deployment_fd;
 
 mod ostree_container;
 
+/// See https://github.com/containers/composefs-rs/issues/159
+pub type ComposefsRepository =
+    composefs::repository::Repository<composefs::fsverity::Sha512HashValue>;
+
+/// Path to the physical root
+pub const SYSROOT: &str = "sysroot";
+
+/// The toplevel composefs directory path
+pub const COMPOSEFS: &str = "composefs";
+pub const COMPOSEFS_MODE: Mode = Mode::from_raw_mode(0o700);
+
 /// The path to the bootc root directory, relative to the physical
 /// system root
 pub(crate) const BOOTC_ROOT: &str = "ostree/bootc";
 
 pub(crate) struct Storage {
+    /// Directory holding the physical root
+    pub physical_root: Dir,
+
+    /// The OSTree storage
     pub sysroot: SysrootLock,
-    run: Dir,
+    /// The composefs storage
+    pub composefs: OnceCell<Arc<ComposefsRepository>>,
+    /// The containers-image storage used foR LBIs
     imgstore: OnceCell<crate::imgstorage::Storage>,
+
+    /// Our runtime state
+    run: Dir,
+
+    /// This is a stub abstraction that tries to hide ostree
+    /// that we aren't really using right now
     pub store: Box<dyn ContainerImageStoreImpl>,
 }
 
@@ -71,12 +96,29 @@ impl Storage {
             }),
             Err(_) => crate::spec::Store::default(),
         };
-
         let store = load(store);
 
+        // ostree has historically always relied on
+        // having ostree -> sysroot/ostree as a symlink in the image to
+        // make it so that code doesn't need to distinguish between booted
+        // vs offline target. The ostree code all just looks at the ostree/
+        // directory, and will follow the link in the booted case.
+        //
+        // For composefs we aren't going to do a similar thing, so here
+        // we need to explicitly distinguish the two and the storage
+        // here hence holds a reference to the physical root.
+        let ostree_sysroot_dir = crate::utils::sysroot_dir(&sysroot)?;
+        let physical_root = if sysroot.is_booted() {
+            ostree_sysroot_dir.open_dir(SYSROOT)?
+        } else {
+            ostree_sysroot_dir
+        };
+
         Ok(Self {
+            physical_root,
             sysroot,
             run,
+            composefs: Default::default(),
             store,
             imgstore: Default::default(),
         })
@@ -109,6 +151,31 @@ impl Storage {
         let imgstore =
             crate::imgstorage::Storage::create(&sysroot_dir, &self.run, sepolicy.as_ref())?;
         Ok(self.imgstore.get_or_init(|| imgstore))
+    }
+
+    pub(crate) fn get_ensure_composefs(&self) -> Result<Arc<ComposefsRepository>> {
+        if let Some(composefs) = self.composefs.get() {
+            return Ok(Arc::clone(composefs));
+        }
+
+        let mut db = DirBuilder::new();
+        db.mode(COMPOSEFS_MODE.as_raw_mode());
+        self.physical_root.ensure_dir_with(COMPOSEFS, &db)?;
+
+        let mut composefs =
+            ComposefsRepository::open_path(&self.physical_root.open_dir(COMPOSEFS)?, ".")?;
+
+        // Bootstrap verity off of the ostree state. In practice this means disabled by
+        // default right now.
+        let ostree_repo = &self.sysroot.repo();
+        let ostree_verity = ostree_ext::fsverity::is_verity_enabled(ostree_repo)?;
+        if !ostree_verity.enabled {
+            tracing::debug!("Setting insecure mode for composefs repo");
+            composefs.set_insecure(true);
+        }
+        let composefs = Arc::new(composefs);
+        let r = Arc::clone(self.composefs.get_or_init(|| composefs));
+        Ok(r)
     }
 
     /// Update the mtime on the storage root directory
