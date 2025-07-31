@@ -61,7 +61,9 @@ See [GOVERNANCE.md](GOVERNANCE.md) for project governance details.
 ## Badges
 
 [![OpenSSF Best Practices](https://www.bestpractices.dev/projects/10113/badge)](https://www.bestpractices.dev/projects/10113)
-
+[![LFX Health Score](https://insights.linuxfoundation.org/api/badge/health-score?project=bootc)](https://insights.linuxfoundation.org/project/bootc)
+[![LFX Contributors](https://insights.linuxfoundation.org/api/badge/contributors?project=bootc)](https://insights.linuxfoundation.org/project/bootc)
+[![LFX Active Contributors](https://insights.linuxfoundation.org/api/badge/active-contributors?project=bootc)](https://insights.linuxfoundation.org/project/bootc)
 
 ### Code of Conduct
 
