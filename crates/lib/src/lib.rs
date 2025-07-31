@@ -5,6 +5,7 @@
 //! bootable container images.
 
 mod boundimage;
+mod cfsctl;
 pub mod cli;
 pub(crate) mod deploy;
 pub(crate) mod fsck;

@@ -1,4 +1,5 @@
 use std::{
+    ffi::OsString,
     fs::create_dir_all,
     path::{Path, PathBuf},
     sync::Arc,
@@ -12,7 +13,7 @@ use rustix::fs::CWD;
 use composefs_boot::{write_boot, BootOps};
 
 use composefs::{
-    fsverity::{FsVerityHashValue, Sha256HashValue},
+    fsverity::{FsVerityHashValue, Sha512HashValue},
     repository::Repository,
 };
 
@@ -37,7 +38,6 @@ pub struct App {
     cmd: Command,
 }
 
-#[cfg(feature = "oci")]
 #[derive(Debug, Subcommand)]
 enum OciCommand {
     /// Stores a tar file as a splitstream in the repository.
@@ -109,7 +109,6 @@ enum Command {
         reference: String,
     },
     /// Commands for dealing with OCI layers
-    #[cfg(feature = "oci")]
     Oci {
         #[clap(subcommand)]
         cmd: OciCommand,
@@ -146,39 +145,39 @@ enum Command {
     ImageObjects {
         name: String,
     },
-    #[cfg(feature = "http")]
-    Fetch {
-        url: String,
-        name: String,
-    },
 }
 
-fn verity_opt(opt: &Option<String>) -> Result<Option<Sha256HashValue>> {
-    Ok(match opt {
-        Some(value) => Some(FsVerityHashValue::from_hex(value)?),
-        None => None,
-    })
+fn verity_opt(opt: &Option<String>) -> Result<Option<Sha512HashValue>> {
+    Ok(opt
+        .as_ref()
+        .map(|value| FsVerityHashValue::from_hex(value))
+        .transpose()?)
 }
 
-#[tokio::main]
-async fn main() -> Result<()> {
-    env_logger::init();
+pub(crate) async fn run_from_iter<I>(system_store: &crate::store::Storage, args: I) -> Result<()>
+where
+    I: IntoIterator,
+    I::Item: Into<OsString> + Clone,
+{
+    let args = App::parse_from(
+        std::iter::once(OsString::from("cfs")).chain(args.into_iter().map(Into::into)),
+    );
 
-    let args = App::parse();
-
-    let mut repo: Repository<Sha256HashValue> = (if let Some(path) = &args.repo {
-        Repository::open_path(CWD, path)
-    } else if args.system {
-        Repository::open_system()
+    let repo = if let Some(path) = &args.repo {
+        let mut r = Repository::open_path(CWD, path)?;
+        r.set_insecure(args.insecure);
+        Arc::new(r)
     } else if args.user {
-        Repository::open_user()
-    } else if rustix::process::getuid().is_root() {
-        Repository::open_system()
+        let mut r = Repository::open_user()?;
+        r.set_insecure(args.insecure);
+        Arc::new(r)
     } else {
-        Repository::open_user()
-    })?;
-
-    repo.set_insecure(args.insecure);
+        if args.insecure {
+            anyhow::bail!("Cannot override insecure state for system repo");
+        }
+        system_store.get_ensure_composefs()?
+    };
+    let repo = &repo;
 
     match args.cmd {
         Command::Transaction => {
@@ -194,11 +193,10 @@ async fn main() -> Result<()> {
             let image_id = repo.import_image(&reference, &mut std::io::stdin())?;
             println!("{}", image_id.to_id());
         }
-        #[cfg(feature = "oci")]
         Command::Oci { cmd: oci_cmd } => match oci_cmd {
             OciCommand::ImportLayer { name, sha256 } => {
                 let object_id = composefs_oci::import_layer(
-                    &Arc::new(repo),
+                    &repo,
                     &composefs::util::parse_sha256(sha256)?,
                     name.as_deref(),
                     &mut std::io::stdin(),
@@ -247,8 +245,7 @@ async fn main() -> Result<()> {
                 println!("{}", image_id.to_id());
             }
             OciCommand::Pull { ref image, name } => {
-                let (sha256, verity) =
-                    composefs_oci::pull(&Arc::new(repo), image, name.as_deref()).await?;
+                let (sha256, verity) = composefs_oci::pull(&repo, image, name.as_deref()).await?;
 
                 println!("sha256 {}", hex::encode(sha256));
                 println!("verity {}", verity.to_hex());
@@ -258,8 +255,7 @@ async fn main() -> Result<()> {
                 ref config_verity,
             } => {
                 let verity = verity_opt(config_verity)?;
-                let (sha256, verity) =
-                    composefs_oci::seal(&Arc::new(repo), config_name, verity.as_ref())?;
+                let (sha256, verity) = composefs_oci::seal(&repo, config_name, verity.as_ref())?;
                 println!("sha256 {}", hex::encode(sha256));
                 println!("verity {}", verity.to_id());
             }
@@ -301,7 +297,7 @@ async fn main() -> Result<()> {
                 let state = args
                     .repo
                     .as_ref()
-                    .map(|p: &PathBuf| p.parent().unwrap())
+                    .map(|p: &PathBuf| p.parent().unwrap_or(p))
                     .unwrap_or(Path::new("/sysroot"))
                     .join("state/deploy")
                     .join(id.to_hex());
@@ -358,12 +354,6 @@ async fn main() -> Result<()> {
         }
         Command::GC => {
             repo.gc()?;
-        }
-        #[cfg(feature = "http")]
-        Command::Fetch { url, name } => {
-            let (sha256, verity) = composefs_http::download(&url, &name, Arc::new(repo)).await?;
-            println!("sha256 {}", hex::encode(sha256));
-            println!("verity {}", verity.to_hex());
         }
     }
     Ok(())

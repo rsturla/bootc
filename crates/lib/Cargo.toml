@@ -23,6 +23,9 @@ bootc-mount = { path = "../mount" }
 bootc-tmpfiles = { path = "../tmpfiles" }
 bootc-sysusers = { path = "../sysusers" }
 camino = { workspace = true, features = ["serde1"] }
+composefs = { workspace = true }
+composefs-boot = { workspace = true }
+composefs-oci = { workspace = true }
 ostree-ext = { path = "../ostree-ext", features = ["bootc"] }
 chrono = { workspace = true, features = ["serde"] }
 clap = { workspace = true, features = ["derive","cargo"] }
