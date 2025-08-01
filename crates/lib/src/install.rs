@@ -55,6 +55,7 @@ use self::baseline::InstallBlockDeviceOpts;
 use crate::boundimage::{BoundImage, ResolvedBoundImage};
 use crate::containerenv::ContainerExecutionInfo;
 use crate::deploy::{prepare_for_pull, pull_from_prepared, PreparedImportMeta, PreparedPullResult};
+use crate::kernel::Cmdline;
 use crate::lsm;
 use crate::progress_jsonl::ProgressWriter;
 use crate::spec::ImageReference;
@@ -1661,20 +1662,22 @@ struct RootMountInfo {
 
 /// Discover how to mount the root filesystem, using existing kernel arguments and information
 /// about the root mount.
-fn find_root_args_to_inherit(cmdline: &[&str], root_info: &Filesystem) -> Result<RootMountInfo> {
-    let cmdline = || cmdline.iter().copied();
-    let root = crate::kernel::find_first_cmdline_arg(cmdline(), "root");
+fn find_root_args_to_inherit(cmdline: &Cmdline, root_info: &Filesystem) -> Result<RootMountInfo> {
+    let root = cmdline.iter().find(|p| p.key == b"root");
     // If we have a root= karg, then use that
     let (mount_spec, kargs) = if let Some(root) = root {
-        let rootflags = cmdline().find(|arg| arg.starts_with(crate::kernel::ROOTFLAGS));
-        let inherit_kargs =
-            cmdline().filter(|arg| arg.starts_with(crate::kernel::INITRD_ARG_PREFIX));
+        let rootflags = cmdline
+            .iter()
+            .find(|arg| arg.key == crate::kernel::ROOTFLAGS);
+        let inherit_kargs = cmdline
+            .iter()
+            .filter(|arg| arg.key.starts_with(crate::kernel::INITRD_ARG_PREFIX));
         (
-            root.to_owned(),
+            root.value_lossy(),
             rootflags
                 .into_iter()
                 .chain(inherit_kargs)
-                .map(ToOwned::to_owned)
+                .map(|p| p.to_string())
                 .collect(),
         )
     } else {
@@ -1823,8 +1826,7 @@ pub(crate) async fn install_to_filesystem(
         }
     } else if targeting_host_root {
         // In the to-existing-root case, look at /proc/cmdline
-        let cmdline = crate::kernel::parse_cmdline()?;
-        let cmdline = cmdline.iter().map(|s| s.as_str()).collect::<Vec<_>>();
+        let cmdline = Cmdline::from_proc()?;
         find_root_args_to_inherit(&cmdline, &inspect)?
     } else {
         // Otherwise, gather metadata from the provided root and use its provided UUID as a
@@ -2035,21 +2037,15 @@ mod tests {
             uuid: Some("965eb3c7-5a3f-470d-aaa2-1bcf04334bc6".into()),
             children: None,
         };
-        let r = find_root_args_to_inherit(&[], &inspect).unwrap();
+        let kargs = Cmdline::from("");
+        let r = find_root_args_to_inherit(&kargs, &inspect).unwrap();
         assert_eq!(r.mount_spec, "UUID=965eb3c7-5a3f-470d-aaa2-1bcf04334bc6");
 
+        let kargs =
+            Cmdline::from("root=/dev/mapper/root rw someother=karg rd.lvm.lv=root systemd.debug=1");
+
         // In this case we take the root= from the kernel cmdline
-        let r = find_root_args_to_inherit(
-            &[
-                "root=/dev/mapper/root",
-                "rw",
-                "someother=karg",
-                "rd.lvm.lv=root",
-                "systemd.debug=1",
-            ],
-            &inspect,
-        )
-        .unwrap();
+        let r = find_root_args_to_inherit(&kargs, &inspect).unwrap();
         assert_eq!(r.mount_spec, "/dev/mapper/root");
         assert_eq!(r.kargs.len(), 1);
         assert_eq!(r.kargs[0], "rd.lvm.lv=root");
