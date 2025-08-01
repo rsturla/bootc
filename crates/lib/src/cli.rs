@@ -458,6 +458,11 @@ pub(crate) enum InternalsOpts {
         #[clap(allow_hyphen_values = true)]
         args: Vec<OsString>,
     },
+    /// Proxy frontend for the `cfsctl` CLI
+    Cfs {
+        #[clap(allow_hyphen_values = true)]
+        args: Vec<OsString>,
+    },
     /// Proxy frontend for the legacy `ostree container` CLI.
     OstreeContainer {
         #[clap(allow_hyphen_values = true)]
@@ -1259,6 +1264,10 @@ async fn run_from_opt(opt: Opt) -> Result<()> {
                     Ok(())
                 }
             },
+            InternalsOpts::Cfs { args } => {
+                let sysroot = &get_storage().await?;
+                crate::cfsctl::run_from_iter(sysroot, args.iter()).await
+            }
             InternalsOpts::Reboot => crate::reboot::reboot(),
             InternalsOpts::Fsck => {
                 let sysroot = &get_storage().await?;
