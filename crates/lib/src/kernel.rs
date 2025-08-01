@@ -1,3 +1,8 @@
+//! Kernel command line parsing utilities.
+//!
+//! This module provides functionality for parsing and working with kernel command line
+//! arguments, supporting both key-only switches and key-value pairs with proper quote handling.
+
 use std::borrow::Cow;
 
 use anyhow::Result;
@@ -7,19 +12,35 @@ pub(crate) const INITRD_ARG_PREFIX: &[u8] = b"rd.";
 /// The kernel argument for configuring the rootfs flags.
 pub(crate) const ROOTFLAGS: &[u8] = b"rootflags";
 
+/// A parsed kernel command line.
+///
+/// Wraps the raw command line bytes and provides methods for parsing and iterating
+/// over individual parameters. Uses copy-on-write semantics to avoid unnecessary
+/// allocations when working with borrowed data.
 pub(crate) struct Cmdline<'a>(Cow<'a, [u8]>);
 
 impl<'a, T: AsRef<[u8]> + ?Sized> From<&'a T> for Cmdline<'a> {
+    /// Creates a new `Cmdline` from any type that can be referenced as bytes.
+    ///
+    /// Uses borrowed data when possible to avoid unnecessary allocations.
     fn from(input: &'a T) -> Self {
         Self(Cow::Borrowed(input.as_ref()))
     }
 }
 
 impl<'a> Cmdline<'a> {
+    /// Reads the kernel command line from `/proc/cmdline`.
+    ///
+    /// Returns an error if the file cannot be read or if there are I/O issues.
     pub fn from_proc() -> Result<Self> {
         Ok(Self(Cow::Owned(std::fs::read("/proc/cmdline")?)))
     }
 
+    /// Returns an iterator over all parameters in the command line.
+    ///
+    /// Properly handles quoted values containing whitespace and splits on
+    /// unquoted whitespace characters. Parameters are parsed as either
+    /// key-only switches or key=value pairs.
     pub fn iter(&'a self) -> impl Iterator<Item = Parameter<'a>> {
         let mut in_quotes = false;
 
@@ -32,36 +53,99 @@ impl<'a> Cmdline<'a> {
             })
             .map(Parameter::from)
     }
+
+    /// Locate a kernel argument with the given key name.
+    ///
+    /// Returns the first parameter matching the given key, or `None` if not found.
+    /// Key comparison treats dashes and underscores as equivalent.
+    pub fn find(&'a self, key: impl AsRef<[u8]>) -> Option<Parameter<'a>> {
+        let key = ParameterKey(key.as_ref());
+        self.iter().find(|p| p.key == key)
+    }
 }
 
+/// A single kernel command line parameter key
+///
+/// Handles quoted values and treats dashes and underscores in keys as equivalent.
 #[derive(Debug, Eq)]
+pub(crate) struct ParameterKey<'a>(&'a [u8]);
+
+impl<'a> std::ops::Deref for ParameterKey<'a> {
+    type Target = [u8];
+
+    fn deref(&self) -> &'a Self::Target {
+        self.0
+    }
+}
+
+impl<'a> From<&'a [u8]> for ParameterKey<'a> {
+    fn from(value: &'a [u8]) -> Self {
+        Self(value)
+    }
+}
+
+/// A single kernel command line parameter.
+#[derive(Debug, PartialEq, Eq)]
 pub(crate) struct Parameter<'a> {
-    pub key: &'a [u8],
+    /// The parameter key as raw bytes
+    pub key: ParameterKey<'a>,
+    /// The parameter value as raw bytes, if present
     pub value: Option<&'a [u8]>,
 }
 
 impl<'a> Parameter<'a> {
-    pub fn key_lossy(&self) -> String {
-        String::from_utf8_lossy(self.key).to_string()
+    /// Create a new parameter with the provided key and value.
+    #[cfg(test)]
+    pub fn new_kv<'k: 'a, 'v: 'a>(key: &'k [u8], value: &'v [u8]) -> Self {
+        Self {
+            key: ParameterKey(key),
+            value: Some(value),
+        }
     }
 
+    /// Create a new parameter with the provided key.
+    #[cfg(test)]
+    pub fn new_key(key: &'a [u8]) -> Self {
+        Self {
+            key: ParameterKey(key),
+            value: None,
+        }
+    }
+
+    /// Returns the key as a lossy UTF-8 string.
+    ///
+    /// Invalid UTF-8 sequences are replaced with the Unicode replacement character.
+    pub fn key_lossy(&self) -> String {
+        String::from_utf8_lossy(&self.key).to_string()
+    }
+
+    /// Returns the value as a lossy UTF-8 string.
+    ///
+    /// Invalid UTF-8 sequences are replaced with the Unicode replacement character.
+    /// Returns an empty string if no value is present.
     pub fn value_lossy(&self) -> String {
         String::from_utf8_lossy(self.value.unwrap_or(&[])).to_string()
     }
 }
 
 impl<'a, T: AsRef<[u8]> + ?Sized> From<&'a T> for Parameter<'a> {
+    /// Parses a parameter from raw bytes.
+    ///
+    /// Splits on the first `=` character to separate key and value.
+    /// Strips only the outermost pair of double quotes from values.
+    /// If no `=` is found, treats the entire input as a key-only parameter.
     fn from(input: &'a T) -> Self {
         let input = input.as_ref();
         let equals = input.iter().position(|b| *b == b'=');
 
         match equals {
             None => Self {
-                key: input,
+                key: ParameterKey(input),
                 value: None,
             },
             Some(i) => {
                 let (key, mut value) = input.split_at(i);
+                let key = ParameterKey(key);
 
                 // skip `=`, we know it's the first byte because we
                 // found it above
@@ -83,7 +167,11 @@ impl<'a, T: AsRef<[u8]> + ?Sized> From<&'a T> for Parameter<'a> {
     }
 }
 
-impl PartialEq for Parameter<'_> {
+impl PartialEq for ParameterKey<'_> {
+    /// Compares two parameter keys for equality.
+    ///
+    /// Keys are compared with dashes and underscores treated as equivalent.
+    /// This comparison is case-sensitive.
     fn eq(&self, other: &Self) -> bool {
         let dedashed = |&c: &u8| {
             if c == b'-' {
@@ -97,21 +185,18 @@ impl PartialEq for Parameter<'_> {
         //
         // For example, "foo" == "foobar" since the zipped iterator
         // only compares the first three chars.
-        let our_iter = self.key.iter().map(dedashed);
-        let other_iter = other.key.iter().map(dedashed);
-        if !our_iter.eq(other_iter) {
-            return false;
-        }
-
-        match (self.value, other.value) {
-            (Some(ours), Some(other)) => ours == other,
-            (None, None) => true,
-            _ => false,
-        }
+        let our_iter = self.0.iter().map(dedashed);
+        let other_iter = other.0.iter().map(dedashed);
+        our_iter.eq(other_iter)
     }
 }
 
 impl std::fmt::Display for Parameter<'_> {
+    /// Formats the parameter for display.
+    ///
+    /// Key-only parameters are displayed as just the key.
+    /// Key-value parameters are displayed as `key=value`.
+    /// Values containing whitespace are automatically quoted.
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         let key = self.key_lossy();
 
@@ -136,11 +221,11 @@ mod tests {
     #[test]
     fn test_parameter_simple() {
         let switch = Parameter::from("foo");
-        assert_eq!(switch.key, b"foo");
+        assert_eq!(switch.key.0, b"foo");
         assert_eq!(switch.value, None);
 
         let kv = Parameter::from("bar=baz");
-        assert_eq!(kv.key, b"bar");
+        assert_eq!(kv.key.0, b"bar");
         assert_eq!(kv.value, Some(b"baz".as_slice()));
     }
 
@@ -156,7 +241,7 @@ mod tests {
 
         // quotes don't get removed from keys
         let p = Parameter::from("\"\"\"");
-        assert_eq!(p.key, b"\"\"\"");
+        assert_eq!(p.key.0, b"\"\"\"");
 
         // quotes only get stripped from the absolute ends of values
         let p = Parameter::from("foo=\"internal \" quotes \" are ok\"");
@@ -212,31 +297,19 @@ mod tests {
         let kargs = Cmdline::from(b"foo=bar,bar2 baz=fuz wiz".as_slice());
         let mut iter = kargs.iter();
 
-        assert_eq!(
-            iter.next(),
-            Some(Parameter {
-                key: b"foo",
-                value: Some(b"bar,bar2".as_slice())
-            })
-        );
+        assert_eq!(iter.next(), Some(Parameter::new_kv(b"foo", b"bar,bar2")));
 
         assert_eq!(
             iter.next(),
-            Some(Parameter {
-                key: b"baz",
-                value: Some(b"fuz".as_slice())
-            })
+            Some(Parameter::new_kv(b"baz", b"fuz".as_slice()))
         );
 
-        assert_eq!(
-            iter.next(),
-            Some(Parameter {
-                key: b"wiz",
-                value: None,
-            })
-        );
-
+        assert_eq!(iter.next(), Some(Parameter::new_key(b"wiz")));
         assert_eq!(iter.next(), None);
+
+        // Test the find API
+        assert_eq!(kargs.find("foo").unwrap().value.unwrap(), b"bar,bar2");
+        assert!(kargs.find("nothing").is_none());
     }
 
     #[test]
@@ -247,5 +320,26 @@ mod tests {
         // there's at least one argument in /proc/cmdline wherever the
         // tests are running
         assert!(kargs.iter().count() > 0);
+    }
+
+    #[test]
+    fn test_kargs_find_dash_hyphen() {
+        let kargs = Cmdline::from(b"a-b=1 a_b=2".as_slice());
+        // find should find the first one, which is a-b=1
+        let p = kargs.find("a_b").unwrap();
+        assert_eq!(p.key.0, b"a-b");
+        assert_eq!(p.value.unwrap(), b"1");
+        let p = kargs.find("a-b").unwrap();
+        assert_eq!(p.key.0, b"a-b");
+        assert_eq!(p.value.unwrap(), b"1");
+
+        let kargs = Cmdline::from(b"a_b=2 a-b=1".as_slice());
+        // find should find the first one, which is a_b=2
+        let p = kargs.find("a_b").unwrap();
+        assert_eq!(p.key.0, b"a_b");
+        assert_eq!(p.value.unwrap(), b"2");
+        let p = kargs.find("a-b").unwrap();
+        assert_eq!(p.key.0, b"a_b");
+        assert_eq!(p.value.unwrap(), b"2");
     }
 }
