@@ -1663,12 +1663,10 @@ struct RootMountInfo {
 /// Discover how to mount the root filesystem, using existing kernel arguments and information
 /// about the root mount.
 fn find_root_args_to_inherit(cmdline: &Cmdline, root_info: &Filesystem) -> Result<RootMountInfo> {
-    let root = cmdline.iter().find(|p| p.key == b"root");
+    let root = cmdline.find("root");
     // If we have a root= karg, then use that
     let (mount_spec, kargs) = if let Some(root) = root {
-        let rootflags = cmdline
-            .iter()
-            .find(|arg| arg.key == crate::kernel::ROOTFLAGS);
+        let rootflags = cmdline.find(crate::kernel::ROOTFLAGS);
         let inherit_kargs = cmdline
             .iter()
             .filter(|arg| arg.key.starts_with(crate::kernel::INITRD_ARG_PREFIX));
