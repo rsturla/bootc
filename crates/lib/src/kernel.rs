@@ -62,6 +62,43 @@ impl<'a> Cmdline<'a> {
         let key = ParameterKey(key.as_ref());
         self.iter().find(|p| p.key == key)
     }
+
+    /// Locate the value of the kernel argument with the given key name.
+    ///
+    /// Returns the first value matching the given key, or `None` if not found.
+    /// Key comparison treats dashes and underscores as equivalent.
+    pub fn value_of(&'a self, key: impl AsRef<[u8]>) -> Option<&'a [u8]> {
+        self.find(key).and_then(|p| p.value)
+    }
+
+    /// Locate the UTF-8 value of the kernel argument with the given key name.
+    ///
+    /// Returns the first value matching the given key, or `None` if not found.
+    /// Key comparison treats dashes and underscores as equivalent.
+    pub fn value_of_utf8(&'a self, key: &str) -> Result<Option<&'a str>, std::str::Utf8Error> {
+        self.value_of(key).map(std::str::from_utf8).transpose()
+    }
+
+    /// Find the value of the kernel argument with the provided name, which must be present.
+    ///
+    /// Otherwise the same as [`Self::value_of`].
+    #[cfg(test)]
+    pub fn require_value_of(&'a self, key: impl AsRef<[u8]>) -> Result<&'a [u8]> {
+        let key = key.as_ref();
+        self.value_of(key).ok_or_else(|| {
+            let key = String::from_utf8_lossy(key);
+            anyhow::anyhow!("Failed to find kernel argument '{key}'")
+        })
+    }
+
+    /// Find the value of the kernel argument with the provided name, which must be present.
+    ///
+    /// Otherwise the same as [`Self::value_of`].
+    #[cfg(test)]
+    pub fn require_value_of_utf8(&'a self, key: &str) -> Result<&'a str> {
+        self.value_of_utf8(key)?
+            .ok_or_else(|| anyhow::anyhow!("Failed to find kernel argument '{key}'"))
+    }
 }
 
 /// A single kernel command line parameter key
@@ -341,5 +378,109 @@ mod tests {
         let p = kargs.find("a-b").unwrap();
         assert_eq!(p.key.0, b"a_b");
         assert_eq!(p.value.unwrap(), b"2");
+    }
+
+    #[test]
+    fn test_value_of() {
+        let kargs = Cmdline::from(b"foo=bar baz=qux switch".as_slice());
+
+        // Test existing key with value
+        assert_eq!(kargs.value_of("foo"), Some(b"bar".as_slice()));
+        assert_eq!(kargs.value_of("baz"), Some(b"qux".as_slice()));
+
+        // Test key without value
+        assert_eq!(kargs.value_of("switch"), None);
+
+        // Test non-existent key
+        assert_eq!(kargs.value_of("missing"), None);
+
+        // Test dash/underscore equivalence
+        let kargs = Cmdline::from(b"dash-key=value1 under_key=value2".as_slice());
+        assert_eq!(kargs.value_of("dash_key"), Some(b"value1".as_slice()));
+        assert_eq!(kargs.value_of("under-key"), Some(b"value2".as_slice()));
+    }
+
+    #[test]
+    fn test_value_of_utf8() {
+        let kargs = Cmdline::from(b"foo=bar baz=qux switch".as_slice());
+
+        // Test existing key with UTF-8 value
+        assert_eq!(kargs.value_of_utf8("foo").unwrap(), Some("bar"));
+        assert_eq!(kargs.value_of_utf8("baz").unwrap(), Some("qux"));
+
+        // Test key without value
+        assert_eq!(kargs.value_of_utf8("switch").unwrap(), None);
+
+        // Test non-existent key
+        assert_eq!(kargs.value_of_utf8("missing").unwrap(), None);
+
+        // Test dash/underscore equivalence
+        let kargs = Cmdline::from(b"dash-key=value1 under_key=value2".as_slice());
+        assert_eq!(kargs.value_of_utf8("dash_key").unwrap(), Some("value1"));
+        assert_eq!(kargs.value_of_utf8("under-key").unwrap(), Some("value2"));
+
+        // Test invalid UTF-8
+        let mut invalid_utf8 = b"invalid=".to_vec();
+        invalid_utf8.push(0xff);
+        let kargs = Cmdline::from(&invalid_utf8);
+        assert!(kargs.value_of_utf8("invalid").is_err());
+    }
+
+    #[test]
+    fn test_require_value_of() {
+        let kargs = Cmdline::from(b"foo=bar baz=qux switch".as_slice());
+
+        // Test existing key with value
+        assert_eq!(kargs.require_value_of("foo").unwrap(), b"bar");
+        assert_eq!(kargs.require_value_of("baz").unwrap(), b"qux");
+
+        // Test key without value should fail
+        let err = kargs.require_value_of("switch").unwrap_err();
+        assert!(err
+            .to_string()
+            .contains("Failed to find kernel argument 'switch'"));
+
+        // Test non-existent key should fail
+        let err = kargs.require_value_of("missing").unwrap_err();
+        assert!(err
+            .to_string()
+            .contains("Failed to find kernel argument 'missing'"));
+
+        // Test dash/underscore equivalence
+        let kargs = Cmdline::from(b"dash-key=value1 under_key=value2".as_slice());
+        assert_eq!(kargs.require_value_of("dash_key").unwrap(), b"value1");
+        assert_eq!(kargs.require_value_of("under-key").unwrap(), b"value2");
+    }
+
+    #[test]
+    fn test_require_value_of_utf8() {
+        let kargs = Cmdline::from(b"foo=bar baz=qux switch".as_slice());
+
+        // Test existing key with UTF-8 value
+        assert_eq!(kargs.require_value_of_utf8("foo").unwrap(), "bar");
+        assert_eq!(kargs.require_value_of_utf8("baz").unwrap(), "qux");
+
+        // Test key without value should fail
+        let err = kargs.require_value_of_utf8("switch").unwrap_err();
+        assert!(err
+            .to_string()
+            .contains("Failed to find kernel argument 'switch'"));
+
+        // Test non-existent key should fail
+        let err = kargs.require_value_of_utf8("missing").unwrap_err();
+        assert!(err
+            .to_string()
+            .contains("Failed to find kernel argument 'missing'"));
+
+        // Test dash/underscore equivalence
+        let kargs = Cmdline::from(b"dash-key=value1 under_key=value2".as_slice());
+        assert_eq!(kargs.require_value_of_utf8("dash_key").unwrap(), "value1");
+        assert_eq!(kargs.require_value_of_utf8("under-key").unwrap(), "value2");
+
+        // Test invalid UTF-8 should fail
+        let mut invalid_utf8 = b"invalid=".to_vec();
+        invalid_utf8.push(0xff);
+        let kargs = Cmdline::from(&invalid_utf8);
+        assert!(kargs.require_value_of_utf8("invalid").is_err());
     }
 }
