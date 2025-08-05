@@ -1668,17 +1668,15 @@ fn find_root_args_to_inherit(cmdline: &Cmdline, root_info: &Filesystem) -> Resul
         .context("Parsing root= karg")?;
     // If we have a root= karg, then use that
     let (mount_spec, kargs) = if let Some(root) = root {
-        let rootflags = cmdline.find(crate::kernel_cmdline::ROOTFLAGS);
-        let inherit_kargs = cmdline.iter().filter(|arg| {
-            arg.key
-                .starts_with(crate::kernel_cmdline::INITRD_ARG_PREFIX)
-        });
+        let rootflags = cmdline.find_str(crate::kernel_cmdline::ROOTFLAGS);
+        let inherit_kargs =
+            cmdline.find_all_starting_with_str(crate::kernel_cmdline::INITRD_ARG_PREFIX);
         (
             root.to_owned(),
             rootflags
                 .into_iter()
                 .chain(inherit_kargs)
-                .map(|p| p.to_string())
+                .map(|p| p.as_ref().to_owned())
                 .collect(),
         )
     } else {
