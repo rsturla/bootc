@@ -55,7 +55,7 @@ use self::baseline::InstallBlockDeviceOpts;
 use crate::boundimage::{BoundImage, ResolvedBoundImage};
 use crate::containerenv::ContainerExecutionInfo;
 use crate::deploy::{prepare_for_pull, pull_from_prepared, PreparedImportMeta, PreparedPullResult};
-use crate::kernel::Cmdline;
+use crate::kernel_cmdline::Cmdline;
 use crate::lsm;
 use crate::progress_jsonl::ProgressWriter;
 use crate::spec::ImageReference;
@@ -817,7 +817,7 @@ async fn install_container(
         .repo()
         .read_commit(pulled_image.ostree_commit.as_str(), gio::Cancellable::NONE)?
         .0;
-    let kargsd = crate::kargs::get_kargs_from_ostree_root(
+    let kargsd = crate::bootc_kargs::get_kargs_from_ostree_root(
         &sysroot.repo(),
         merged_ostree_root.downcast_ref().unwrap(),
         std::env::consts::ARCH,
@@ -1668,10 +1668,11 @@ fn find_root_args_to_inherit(cmdline: &Cmdline, root_info: &Filesystem) -> Resul
         .context("Parsing root= karg")?;
     // If we have a root= karg, then use that
     let (mount_spec, kargs) = if let Some(root) = root {
-        let rootflags = cmdline.find(crate::kernel::ROOTFLAGS);
-        let inherit_kargs = cmdline
-            .iter()
-            .filter(|arg| arg.key.starts_with(crate::kernel::INITRD_ARG_PREFIX));
+        let rootflags = cmdline.find(crate::kernel_cmdline::ROOTFLAGS);
+        let inherit_kargs = cmdline.iter().filter(|arg| {
+            arg.key
+                .starts_with(crate::kernel_cmdline::INITRD_ARG_PREFIX)
+        });
         (
             root.to_owned(),
             rootflags
