@@ -34,7 +34,7 @@ mod docgen;
 mod bootloader;
 mod containerenv;
 mod install;
-mod kernel;
+mod kernel_cmdline;
 
 #[cfg(feature = "grub")]
 pub(crate) mod parsers;
