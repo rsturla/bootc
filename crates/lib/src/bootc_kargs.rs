@@ -1,3 +1,4 @@
+//! This module handles the bootc-owned kernel argument lists in `/usr/lib/bootc/kargs.d`.
 use anyhow::{Context, Result};
 use camino::Utf8Path;
 use cap_std_ext::cap_std::fs::Dir;
@@ -15,6 +16,7 @@ use serde::Deserialize;
 use crate::deploy::ImageState;
 use crate::store::Storage;
 
+/// The relative path to the kernel arguments which may be embedded in an image.
 const KARGS_PATH: &str = "usr/lib/bootc/kargs.d";
 
 /// The kargs.d configuration file.

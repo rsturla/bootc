@@ -465,7 +465,7 @@ static LINT_KARGS: Lint = Lint::new_fatal(
     check_parse_kargs,
 );
 fn check_parse_kargs(root: &Dir, _config: &LintExecutionConfig) -> LintResult {
-    let args = crate::kargs::get_kargs_in_root(root, ARCH)?;
+    let args = crate::bootc_kargs::get_kargs_in_root(root, ARCH)?;
     tracing::debug!("found kargs: {args:?}");
     lint_ok()
 }

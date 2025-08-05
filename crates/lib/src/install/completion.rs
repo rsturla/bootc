@@ -65,7 +65,7 @@ fn reconcile_kargs(sysroot: &ostree::Sysroot, deployment: &ostree::Deployment) -
         .flatten()
         .map(|s| s.as_str())
         .collect::<Vec<_>>();
-    let kargsd = crate::kargs::get_kargs_in_root(deployment_root, std::env::consts::ARCH)?;
+    let kargsd = crate::bootc_kargs::get_kargs_in_root(deployment_root, std::env::consts::ARCH)?;
     let kargsd = kargsd.iter().map(|s| s.as_str()).collect::<Vec<_>>();
 
     current_kargs.append_argv(&install_config_kargs);

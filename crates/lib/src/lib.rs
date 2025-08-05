@@ -4,6 +4,7 @@
 //! to provide a fully "container native" tool for using
 //! bootable container images.
 
+pub(crate) mod bootc_kargs;
 mod boundimage;
 mod cfsctl;
 pub mod cli;
@@ -15,7 +16,6 @@ mod image;
 mod imgstorage;
 pub(crate) mod journal;
 mod k8sapitypes;
-pub(crate) mod kargs;
 mod lints;
 mod lsm;
 pub(crate) mod metadata;

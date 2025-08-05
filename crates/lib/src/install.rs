@@ -817,7 +817,7 @@ async fn install_container(
         .repo()
         .read_commit(pulled_image.ostree_commit.as_str(), gio::Cancellable::NONE)?
         .0;
-    let kargsd = crate::kargs::get_kargs_from_ostree_root(
+    let kargsd = crate::bootc_kargs::get_kargs_from_ostree_root(
         &sysroot.repo(),
         merged_ostree_root.downcast_ref().unwrap(),
         std::env::consts::ARCH,
