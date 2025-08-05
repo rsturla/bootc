@@ -122,8 +122,11 @@ impl<'a> From<&'a [u8]> for ParameterKey<'a> {
 }
 
 /// A single kernel command line parameter.
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, Eq)]
 pub(crate) struct Parameter<'a> {
+    /// The full original value
+    #[allow(dead_code)]
+    pub parameter: &'a [u8],
     /// The parameter key as raw bytes
     pub key: ParameterKey<'a>,
     /// The parameter value as raw bytes, if present
@@ -131,24 +134,6 @@ pub(crate) struct Parameter<'a> {
 }
 
 impl<'a> Parameter<'a> {
-    /// Create a new parameter with the provided key and value.
-    #[cfg(test)]
-    pub fn new_kv<'k: 'a, 'v: 'a>(key: &'k [u8], value: &'v [u8]) -> Self {
-        Self {
-            key: ParameterKey(key),
-            value: Some(value),
-        }
-    }
-
-    /// Create a new parameter with the provided key.
-    #[cfg(test)]
-    pub fn new_key(key: &'a [u8]) -> Self {
-        Self {
-            key: ParameterKey(key),
-            value: None,
-        }
-    }
-
     /// Returns the key as a lossy UTF-8 string.
     ///
     /// Invalid UTF-8 sequences are replaced with the Unicode replacement character.
@@ -177,6 +162,7 @@ impl<'a, T: AsRef<[u8]> + ?Sized> From<&'a T> for Parameter<'a> {
 
         match equals {
             None => Self {
+                parameter: input,
                 key: ParameterKey(input),
                 value: None,
             },
@@ -196,6 +182,7 @@ impl<'a, T: AsRef<[u8]> + ?Sized> From<&'a T> for Parameter<'a> {
                     .unwrap_or(value);
 
                 Self {
+                    parameter: input,
                     key,
                     value: Some(value),
                 }
@@ -225,6 +212,13 @@ impl PartialEq for ParameterKey<'_> {
         let our_iter = self.0.iter().map(dedashed);
         let other_iter = other.0.iter().map(dedashed);
         our_iter.eq(other_iter)
+    }
+}
+
+impl<'a> PartialEq for Parameter<'a> {
+    fn eq(&self, other: &Self) -> bool {
+        // Note we don't compare parameter because we want hyphen-dash insensitivity for the key
+        self.key == other.key && self.value == other.value
     }
 }
 
@@ -334,14 +328,9 @@ mod tests {
         let kargs = Cmdline::from(b"foo=bar,bar2 baz=fuz wiz".as_slice());
         let mut iter = kargs.iter();
 
-        assert_eq!(iter.next(), Some(Parameter::new_kv(b"foo", b"bar,bar2")));
-
-        assert_eq!(
-            iter.next(),
-            Some(Parameter::new_kv(b"baz", b"fuz".as_slice()))
-        );
-
-        assert_eq!(iter.next(), Some(Parameter::new_key(b"wiz")));
+        assert_eq!(iter.next(), Some(Parameter::from(b"foo=bar,bar2")));
+        assert_eq!(iter.next(), Some(Parameter::from(b"baz=fuz")));
+        assert_eq!(iter.next(), Some(Parameter::from(b"wiz")));
         assert_eq!(iter.next(), None);
 
         // Test the find API
