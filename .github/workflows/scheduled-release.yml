@@ -40,18 +40,19 @@ jobs:
             exit 0
           fi
           
-          # For scheduled runs, check if it's been 3 weeks since the last release
-          LAST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "v0.0.0")
-          LAST_TAG_DATE=$(git log -1 --format=%ct "$LAST_TAG" 2>/dev/null || echo "0")
-          CURRENT_DATE=$(date +%s)
-          DAYS_SINCE_RELEASE=$(( (CURRENT_DATE - LAST_TAG_DATE) / 86400 ))
+          START_DATE="2025-08-04" # start of a 3 week sprint
+          START_TIMESTAMP=$(date -d "$START_DATE" +%s)
+          CURRENT_TIMESTAMP=$(date +%s)
+          # Add 12 hour buffer (43200 seconds) to account for scheduling delays
+          ADJUSTED_TIMESTAMP=$((CURRENT_TIMESTAMP + 43200))
+          DAYS_SINCE_START=$(( (ADJUSTED_TIMESTAMP - START_TIMESTAMP) / 86400 ))
+          WEEKS_SINCE_START=$(( DAYS_SINCE_START / 7 ))
           
-          echo "Days since last release: $DAYS_SINCE_RELEASE"
+          echo "Days since start date ($START_DATE): $DAYS_SINCE_START"
+          echo "Weeks since start date: $WEEKS_SINCE_START"
           
-          # Release if it's been at least 19 days
-          # This allows a couple days of buffer
-          # in case the previous release didn't happen immediately
-          if [ $DAYS_SINCE_RELEASE -ge 19 ]; then
+          # Release every 3 weeks
+          if [ $WEEKS_SINCE_START -gt 0 ] && [ $((WEEKS_SINCE_START % 3)) -eq 0 ]; then
             echo "should_release=true" >> $GITHUB_OUTPUT
           else
             echo "should_release=false" >> $GITHUB_OUTPUT
