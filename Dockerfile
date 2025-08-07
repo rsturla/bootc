@@ -39,6 +39,8 @@ EORUN
 # bootc binaries in /out. The intention is that the target rootfs is extracted from /out
 # back into a final stae (without the build deps etc) below.
 FROM base as build
+# Flip this on to enable initramfs code
+ARG initramfs=0
 # This installs our package dependencies, and we want to cache it independently of the rest.
 # Basically we don't want changing a .rs file to blow out the cache of packages. So we only
 # copy files necessary
@@ -59,8 +61,14 @@ COPY --from=src /src /src
 WORKDIR /src
 # See https://www.reddit.com/r/rust/comments/126xeyx/exploring_the_problem_of_faster_cargo_docker/
 # We aren't using the full recommendations there, just the simple bits.
-RUN --mount=type=cache,target=/build/target --mount=type=cache,target=/var/roothome \
-    make && make install-all DESTDIR=/out
+RUN --mount=type=cache,target=/build/target --mount=type=cache,target=/var/roothome <<EORUN
+set -xeuo pipefail
+make
+make install-all DESTDIR=/out
+if test "${initramfs:-}" = 1; then
+  make install-initramfs-dracut DESTDIR=/out
+fi
+EORUN
 
 # This "build" just runs our unit tests
 FROM build as units
@@ -74,6 +82,10 @@ FROM base
 COPY --from=build /out/ /
 RUN <<EORUN
 set -xeuo pipefail
+if test -x /usr/lib/bootc/initramfs-setup; then
+   kver=$(cd /usr/lib/modules && echo *);
+   env DRACUT_NO_XATTR=1 dracut -vf /usr/lib/modules/$kver/initramfs.img $kver
+fi
 # Only in this containerfile, inject a file which signifies
 # this comes from this development image. This can be used in
 # tests to know we're doing upstream CI.

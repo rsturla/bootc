@@ -53,9 +53,19 @@ install-ostree-hooks:
 	  ln -sf ../../../bin/bootc $(DESTDIR)$(prefix)/libexec/libostree/ext/$$x; \
 	done
 
+# Install code in the initramfs, off by default except in builds from git main right now
+# Also the systemd unit hardcodes /usr so we give up the farce of supporting $(prefix)
+install-initramfs:
+	install -D -m 0644 -t $(DESTDIR)/usr/lib/systemd/system crates/initramfs/*.service
+	install -D -m 0755 target/release/bootc-initramfs-setup $(DESTDIR)/usr/lib/bootc/initramfs-setup
+
+# Install initramfs files, including dracut module
+install-initramfs-dracut: install-initramfs
+	install -D -m 0755 -t $(DESTDIR)/usr/lib/dracut/modules.d/51bootc crates/initramfs/dracut/module-setup.sh
+
 # Install the main binary, the ostree hooks, and the integration test suite.
 install-all: install install-ostree-hooks
-	install -D -m 0755 target/release/tests-integration $(DESTDIR)$(prefix)/bin/bootc-integration-tests 
+	install -D -m 0755 target/release/tests-integration $(DESTDIR)$(prefix)/bin/bootc-integration-tests
 
 bin-archive: all
 	$(MAKE) install DESTDIR=tmp-install && $(TAR_REPRODUCIBLE) --zstd -C tmp-install -cf target/bootc.tar.zst . && rm tmp-install -rf
