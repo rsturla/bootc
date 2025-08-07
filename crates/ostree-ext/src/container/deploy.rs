@@ -56,7 +56,7 @@ pub struct DeployOpts<'a> {
 // Access the file descriptor for a sysroot
 #[allow(unsafe_code)]
 #[cfg(feature = "bootc")]
-pub(crate) fn sysroot_fd(sysroot: &ostree::Sysroot) -> BorrowedFd {
+pub(crate) fn sysroot_fd(sysroot: &ostree::Sysroot) -> BorrowedFd<'_> {
     unsafe { BorrowedFd::borrow_raw(sysroot.fd()) }
 }
 
