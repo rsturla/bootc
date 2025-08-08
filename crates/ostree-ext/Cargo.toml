@@ -29,7 +29,7 @@ fn-error-context = { workspace = true }
 futures-util = "0.3.13"
 gvariant = "0.5.0"
 hex = { workspace = true }
-io-lifetimes = "2"
+io-lifetimes = "3"
 indicatif = { workspace = true }
 libc = { workspace = true }
 libsystemd = "0.7.0"

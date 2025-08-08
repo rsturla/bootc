@@ -43,7 +43,7 @@ linkme = "0.3"
 openssl = { workspace = true }
 regex = "1.10.4"
 rustix = { workspace = true }
-schemars = { version = "0.8.17", features = ["chrono"] }
+schemars = { version = "1.0.4", features = ["chrono04"] }
 serde = { workspace = true, features = ["derive"] }
 serde_ignored = "0.1.10"
 serde_json = { workspace = true }
@@ -52,7 +52,7 @@ tokio = { workspace = true, features = ["io-std", "time", "process", "rt", "net"
 tokio-util = { workspace = true }
 tracing = { workspace = true }
 tempfile = { workspace = true }
-toml = "0.8.12"
+toml = "0.9.5"
 xshell = { version = "0.2.6", optional = true }
 uuid = { version = "1.8.0", features = ["v4"] }
 tini = "1.3.0"

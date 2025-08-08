@@ -14,7 +14,7 @@ debug = true
 
 [profile.thin]
 # drop bootc size when split debuginfo is not available and go a step
-# further in size optimization (when tested from 140mb, to 12mb without 
+# further in size optimization (when tested from 140mb, to 12mb without
 # symbols/debuginfo, to 5.8mb with extra optimizations)
 # https://github.com/johnthagen/min-sized-rust
 # cargo build --profile=thin
@@ -44,7 +44,7 @@ clap = "4.5.4"
 clap_mangen = { version = "0.2.20" }
 hex = "0.4.3"
 indoc = "2.0.5"
-indicatif = "0.17.0"
+indicatif = "0.18.0"
 fn-error-context = "0.2.1"
 libc = "0.2.154"
 openssl = "0.10.72"
