@@ -12,15 +12,18 @@ name = "xtask"
 path = "src/xtask.rs"
 
 [dependencies]
+# Workspace dependencies
 anyhow = { workspace = true }
 camino = { workspace = true }
 chrono = { workspace = true, features = ["std"] }
 fn-error-context = { workspace = true }
-tar = "0.4"
-toml = { workspace = true }
 tempfile = { workspace = true }
-mandown = "1.1.0"
+toml = { workspace = true }
 xshell = { workspace = true }
+
+# Crate-specific dependencies
+mandown = "1.1.0"
+tar = "0.4"
 
 [lints]
 workspace = true

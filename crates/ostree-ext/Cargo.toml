@@ -8,51 +8,53 @@ repository = "https://github.com/ostreedev/ostree-rs-ext"
 version = "0.15.3"
 
 [dependencies]
-containers-image-proxy = "0.8.0"
-# We re-export this library too.
-ostree = { features = ["v2025_2"], version = "0.20" }
-
-# Private dependencies
-anyhow = { workspace = true }
+# Internal crates
 bootc-utils = { package = "bootc-internal-utils", path = "../utils", version = "0.0.0" }
+
+# Workspace dependencies
+anyhow = { workspace = true }
 camino = { workspace = true, features = ["serde1"] }
-composefs = { workspace = true }
-composefs-boot = { workspace = true }
-composefs-oci = { workspace = true }
+canon-json = { workspace = true }
+cap-std-ext = { workspace = true, features = ["fs_utf8"] }
 chrono = { workspace = true }
 clap = { workspace = true, features = ["derive","cargo"] }
 clap_mangen = { workspace = true, optional = true }
-comfy-table = "7.1.1"
-cap-std-ext = { workspace = true, features = ["fs_utf8"] }
-flate2 = { features = ["zlib"], default-features = false, version = "1.0.20" }
+composefs = { workspace = true }
+composefs-boot = { workspace = true }
+composefs-oci = { workspace = true }
 fn-error-context = { workspace = true }
-futures-util = "0.3.13"
-gvariant = "0.5.0"
 hex = { workspace = true }
-io-lifetimes = "3"
 indicatif = { workspace = true }
 libc = { workspace = true }
-libsystemd = "0.7.0"
 openssl = { workspace = true }
-ocidir = "0.4.0"
-pin-project = "1.0"
 regex = { workspace = true }
 rustix = { workspace = true, features = ["fs", "process"] }
 serde = { workspace = true, features = ["derive"] }
 serde_json = { workspace = true }
-tar = "0.4.43"
 tempfile = { workspace = true }
 tokio = { workspace = true, features = ["io-std", "time", "process", "rt", "net"] }
 tokio-util = { workspace = true }
-tokio-stream = { features = ["sync"], version = "0.1.8" }
 tracing = { workspace = true }
-zstd = { version = "0.13.1", features = ["pkg-config"] }
-indexmap = { version = "2.2.2", features = ["serde"] }
 
+# Crate-specific dependencies
+comfy-table = "7.1.1"
+containers-image-proxy = "0.8.0"
+flate2 = { features = ["zlib"], default-features = false, version = "1.0.20" }
+futures-util = "0.3.13"
+gvariant = "0.5.0"
+indexmap = { version = "2.2.2", features = ["serde"] }
 indoc = { version = "2", optional = true }
-xshell = { version = "0.2", optional = true }
+io-lifetimes = "3"
+libsystemd = "0.7.0"
+ocidir = "0.4.0"
+# We re-export this library too.
+ostree = { features = ["v2025_2"], version = "0.20" }
+pin-project = "1.0"
 similar-asserts = { version = "1.5.0", optional = true }
-canon-json = { workspace = true }
+tar = "0.4.43"
+tokio-stream = { features = ["sync"], version = "0.1.8" }
+xshell = { version = "0.2", optional = true }
+zstd = { version = "0.13.1", features = ["pkg-config"] }
 
 [dev-dependencies]
 quickcheck = "1"

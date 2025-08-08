@@ -7,8 +7,11 @@ repository = "https://github.com/bootc-dev/bootc"
 version = "0.0.0"
 
 [dependencies]
-anyhow = { workspace = true }
+# Internal crates
 bootc-utils = { package = "bootc-internal-utils", path = "../utils", version = "0.0.0" }
+
+# Workspace dependencies
+anyhow = { workspace = true }
 camino = { workspace = true, features = ["serde1"] }
 fn-error-context = { workspace = true }
 libc = { workspace = true }
