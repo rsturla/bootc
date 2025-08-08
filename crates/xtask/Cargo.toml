@@ -17,10 +17,10 @@ camino = { workspace = true }
 chrono = { workspace = true, features = ["std"] }
 fn-error-context = { workspace = true }
 tar = "0.4"
-toml = "0.9"
+toml = { workspace = true }
 tempfile = { workspace = true }
 mandown = "1.1.0"
-xshell = { version = "0.2.6" }
+xshell = { workspace = true }
 
 [lints]
 workspace = true

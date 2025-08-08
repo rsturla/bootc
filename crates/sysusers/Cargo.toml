@@ -9,13 +9,13 @@ publish = false
 anyhow = { workspace = true }
 camino = { workspace = true }
 fn-error-context = { workspace = true }
-cap-std-ext = { version = "4", features = ["fs_utf8"] }
-hex = "0.4"
+cap-std-ext = { workspace = true, features = ["fs_utf8"] }
+hex = { workspace = true }
 thiserror = { workspace = true }
 tempfile = { workspace = true }
 bootc-utils = { package = "bootc-internal-utils", path = "../utils", version = "0.0.0" }
 rustix = { workspace = true }
-uzers = "0.12"
+uzers = { workspace = true }
 
 [dev-dependencies]
 indoc = { workspace = true }

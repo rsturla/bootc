@@ -19,7 +19,7 @@ anyhow = { workspace = true }
 bootc-lib = { version = "1.6", path = "../lib" }
 bootc-utils = { package = "bootc-internal-utils", path = "../utils", version = "0.0.0" }
 tokio = { workspace = true, features = ["macros"] }
-log = "0.4.21"
+log = { workspace = true }
 owo-colors = { workspace = true }
 tracing = { workspace = true }
 

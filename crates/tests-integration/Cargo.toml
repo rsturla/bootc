@@ -24,7 +24,7 @@ rustix = { workspace = true }
 serde = { workspace = true, features = ["derive"] }
 serde_json = { workspace = true }
 tempfile = { workspace = true }
-xshell = { version = "0.2.6" }
+xshell = { workspace = true }
 
 [lints]
 workspace = true

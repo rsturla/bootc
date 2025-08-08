@@ -12,7 +12,7 @@ bootc-utils = { package = "bootc-internal-utils", path = "../utils", version = "
 camino = { workspace = true, features = ["serde1"] }
 fn-error-context = { workspace = true }
 libc = { workspace = true }
-regex = "1.10.4"
+regex = { workspace = true }
 rustix = { workspace = true }
 serde = { workspace = true, features = ["derive"] }
 serde_json = { workspace = true }
@@ -21,7 +21,7 @@ tokio = { workspace = true, features = ["signal"] }
 tracing = { workspace = true }
 
 [dev-dependencies]
-indoc = "2.0.5"
+indoc = { workspace = true }
 
 [lib]
 path = "src/blockdev.rs"

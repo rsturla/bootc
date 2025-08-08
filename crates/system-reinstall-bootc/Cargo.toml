@@ -21,7 +21,7 @@ clap = { workspace = true, features = ["derive"] }
 crossterm = "0.29.0"
 dialoguer = "0.11.0"
 indoc = { workspace = true }
-log = "0.4.21"
+log = { workspace = true }
 openssh-keys = "0.6.4"
 rustix = { workspace = true }
 serde = { workspace = true, features = ["derive"] }
@@ -29,7 +29,7 @@ serde_json = { workspace = true }
 serde_yaml = "0.9.22"
 tempfile = { workspace = true }
 tracing = { workspace = true }
-uzers = "0.12.1"
+uzers = { workspace = true }
 which = "8.0.0"
 
 [lints]
