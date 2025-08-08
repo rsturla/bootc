@@ -156,7 +156,7 @@ pub(crate) async fn create_fixture() -> Result<()> {
     let fixture = crate::fixture::Fixture::new_v1()?;
     let imgref = fixture.export_container().await?.0;
     println!("Wrote: {:?}", imgref);
-    let path = fixture.into_tempdir().into_path();
+    let path = fixture.into_tempdir().keep();
     println!("Wrote: {:?}", path);
     Ok(())
 }

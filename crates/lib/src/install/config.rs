@@ -200,7 +200,7 @@ pub(crate) fn load_config() -> Result<Option<InstallConfiguration>> {
     for (_name, path) in fragments {
         let buf = std::fs::read_to_string(&path)?;
         let mut unused = std::collections::HashSet::new();
-        let de = toml::Deserializer::new(&buf);
+        let de = toml::Deserializer::parse(&buf).with_context(|| format!("Parsing {path:?}"))?;
         let mut c: InstallConfigurationToplevel = serde_ignored::deserialize(de, |path| {
             unused.insert(path.to_string());
         })

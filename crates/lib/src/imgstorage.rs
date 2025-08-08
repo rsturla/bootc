@@ -104,7 +104,7 @@ fn bind_storage_roots(cmd: &mut Command, storage_root: &Dir, run_root: &Dir) -> 
                 Mode::empty(),
             )?;
             rustix::process::fchdir(&storage_root)?;
-            rustix::thread::unshare(rustix::thread::UnshareFlags::NEWNS)?;
+            rustix::thread::unshare_unsafe(rustix::thread::UnshareFlags::NEWNS)?;
             rustix::mount::mount_bind(".", STORAGE_ALIAS_DIR)?;
             rustix::process::fchdir(&oldwd)?;
             Ok(())
