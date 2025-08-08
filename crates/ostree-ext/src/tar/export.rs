@@ -75,13 +75,13 @@ fn map_path_inner<'p>(
 }
 
 /// Convert /usr/etc back to /etc
-fn map_path(p: &Utf8Path) -> std::borrow::Cow<Utf8Path> {
+fn map_path(p: &Utf8Path) -> std::borrow::Cow<'_, Utf8Path> {
     map_path_inner(p, "./usr/etc", "./etc")
 }
 
 /// Convert etc to usr/etc
 /// Note: no leading '/' or './'
-fn unmap_path(p: &Utf8Path) -> std::borrow::Cow<Utf8Path> {
+fn unmap_path(p: &Utf8Path) -> std::borrow::Cow<'_, Utf8Path> {
     map_path_inner(p, "etc", "usr/etc")
 }
 

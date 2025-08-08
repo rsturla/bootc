@@ -142,7 +142,7 @@ pub(crate) struct TarImportConfig {
 }
 
 // If a path starts with /etc or ./etc or etc, remap it to be usr/etc.
-fn remap_etc_path(path: &Utf8Path) -> Cow<Utf8Path> {
+fn remap_etc_path(path: &Utf8Path) -> Cow<'_, Utf8Path> {
     let mut components = path.components();
     let Some(prefix) = components.next() else {
         return Cow::Borrowed(path);

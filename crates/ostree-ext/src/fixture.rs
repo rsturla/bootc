@@ -340,7 +340,7 @@ fn ensure_parent_dirs(
         .map_err(Into::into)
 }
 
-fn relative_path_components(p: &Utf8Path) -> impl Iterator<Item = Utf8Component> {
+fn relative_path_components(p: &Utf8Path) -> impl Iterator<Item = Utf8Component<'_>> {
     p.components()
         .filter(|p| matches!(p, Utf8Component::Normal(_)))
 }

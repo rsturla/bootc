@@ -142,7 +142,7 @@ pub fn take_until_balanced_allow_nested(
 
 /// Parses a single menuentry with title and body commands.
 #[allow(dead_code)]
-fn parse_menuentry(input: &str) -> IResult<&str, MenuEntry> {
+fn parse_menuentry(input: &str) -> IResult<&str, MenuEntry<'_>> {
     let (input, _) = tag("menuentry").parse(input)?;
 
     // Require at least one space after "menuentry"
@@ -198,7 +198,7 @@ fn skip_to_menuentry(input: &str) -> IResult<&str, ()> {
 
 /// Parses all menuentries from a GRUB configuration file.
 #[allow(dead_code)]
-fn parse_all(input: &str) -> IResult<&str, Vec<MenuEntry>> {
+fn parse_all(input: &str) -> IResult<&str, Vec<MenuEntry<'_>>> {
     let mut remaining = input;
     let mut entries = Vec::new();
 
@@ -230,7 +230,7 @@ fn parse_all(input: &str) -> IResult<&str, Vec<MenuEntry>> {
 
 /// Main entry point for parsing GRUB menuentry files.
 #[allow(dead_code)]
-pub(crate) fn parse_grub_menuentry_file(contents: &str) -> anyhow::Result<Vec<MenuEntry>> {
+pub(crate) fn parse_grub_menuentry_file(contents: &str) -> anyhow::Result<Vec<MenuEntry<'_>>> {
     let (_, entries) = parse_all(&contents)
         .map_err(|e| anyhow::anyhow!("Failed to parse GRUB menuentries: {e}"))?;
     // Validate that entries have reasonable structure
