@@ -401,7 +401,7 @@ fn impl_srpm(sh: &Shell) -> Result<Utf8PathBuf> {
     }
     let pkg = impl_package(sh)?;
     let td = tempfile::tempdir_in("target").context("Allocating tmpdir")?;
-    let td = td.into_path();
+    let td = td.keep();
     let td: &Utf8Path = td.as_path().try_into().unwrap();
     let srcpath = &pkg.srcpath;
     cmd!(sh, "mv {srcpath} {td}").run()?;
