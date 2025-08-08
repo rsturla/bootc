@@ -14,22 +14,27 @@ rust-version = "1.75.0"
 platforms = ["*-unknown-linux-gnu"]
 
 [dependencies]
-anyhow = { workspace = true }
+# Internal crates
 bootc-mount = { path = "../mount" }
 bootc-utils = { package = "bootc-internal-utils", path = "../utils", version = "0.0.0" }
+
+# Workspace dependencies
+anyhow = { workspace = true }
 clap = { workspace = true, features = ["derive"] }
-crossterm = "0.29.0"
-dialoguer = "0.11.0"
 indoc = { workspace = true }
-log = "0.4.21"
-openssh-keys = "0.6.4"
+log = { workspace = true }
 rustix = { workspace = true }
 serde = { workspace = true, features = ["derive"] }
 serde_json = { workspace = true }
-serde_yaml = "0.9.22"
 tempfile = { workspace = true }
 tracing = { workspace = true }
-uzers = "0.12.1"
+uzers = { workspace = true }
+
+# Crate-specific dependencies
+crossterm = "0.29.0"
+dialoguer = "0.11.0"
+openssh-keys = "0.6.4"
+serde_yaml = "0.9.22"
 which = "8.0.0"
 
 [lints]

@@ -9,17 +9,20 @@ repository = "https://github.com/bootc-dev/bootc"
 version = "0.0.0"
 
 [dependencies]
-anyhow = { workspace = true }
+# Internal crates
 bootc-utils = { package = "bootc-internal-utils", path = "../utils", version = "0.0.0" }
+
+# Workspace dependencies
+anyhow = { workspace = true }
 camino = { workspace = true, features = ["serde1"] }
 fn-error-context = { workspace = true }
+libc = { workspace = true }
 rustix = { workspace = true }
-libc = {workspace = true}
 serde = { workspace = true, features = ["derive"] }
 tracing = { workspace = true }
 
 [dev-dependencies]
-indoc = "2.0.5"
+indoc = { workspace = true }
 
 [lib]
 path = "src/mount.rs"
