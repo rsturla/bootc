@@ -116,7 +116,8 @@ pub(crate) fn get_kargs(
     fetched: &ImageState,
 ) -> Result<Vec<String>> {
     let cancellable = gio::Cancellable::NONE;
-    let repo = &sysroot.repo();
+    let ostree = sysroot.get_ostree()?;
+    let repo = &ostree.repo();
     let mut kargs = vec![];
     let sys_arch = std::env::consts::ARCH;
 
@@ -129,7 +130,7 @@ pub(crate) fn get_kargs(
     };
 
     // Get the kargs in kargs.d of the merge
-    let merge_root = &crate::utils::deployment_fd(sysroot, merge_deployment)?;
+    let merge_root = &crate::utils::deployment_fd(ostree, merge_deployment)?;
     let existing_kargs = get_kargs_in_root(merge_root, sys_arch)?;
 
     // Get the kargs in kargs.d of the pending image

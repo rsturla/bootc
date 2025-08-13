@@ -1,5 +1,22 @@
+//! The [`Store`] holds references to three different types of
+//! storage:
+//!
+//! # OSTree
+//!
+//! The default backend for the bootable container store; this
+//! lives in `/ostree` in the physical root.
+//!
+//! # containers-storage:
+//!
+//! Later, bootc gained support for Logically Bound Images.
+//! This is a `containers-storage:` instance that lives
+//! in `/ostree/bootc/storage`
+//!
+//! # composefs
+//!
+//! This lives in `/composefs` in the physical root.
+
 use std::cell::OnceCell;
-use std::ops::Deref;
 use std::sync::Arc;
 
 use anyhow::{Context, Result};
@@ -9,6 +26,7 @@ use cap_std_ext::dirext::CapStdExtDirExt;
 use fn_error_context::context;
 
 use composefs;
+use ostree_ext::ostree;
 use ostree_ext::sysroot::SysrootLock;
 use rustix::fs::Mode;
 
@@ -31,6 +49,8 @@ pub const COMPOSEFS_MODE: Mode = Mode::from_raw_mode(0o700);
 /// system root
 pub(crate) const BOOTC_ROOT: &str = "ostree/bootc";
 
+/// A reference to a physical filesystem root, plus
+/// accessors for the different types of container storage.
 pub(crate) struct Storage {
     /// Directory holding the physical root
     pub physical_root: Dir,
@@ -50,14 +70,6 @@ pub(crate) struct Storage {
 pub(crate) struct CachedImageStatus {
     pub image: Option<ImageStatus>,
     pub cached_update: Option<ImageStatus>,
-}
-
-impl Deref for Storage {
-    type Target = SysrootLock;
-
-    fn deref(&self) -> &Self::Target {
-        &self.ostree
-    }
 }
 
 impl Storage {

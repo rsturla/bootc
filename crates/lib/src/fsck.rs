@@ -106,8 +106,9 @@ static CHECK_RESOLVCONF: FsckCheck =
 /// But at the current time fsck is an experimental feature that we should only be running
 /// in our CI.
 fn check_resolvconf(storage: &Storage) -> FsckResult {
+    let ostree = storage.get_ostree()?;
     // For now we only check the booted deployment.
-    if storage.booted_deployment().is_none() {
+    if ostree.booted_deployment().is_none() {
         return fsck_ok();
     }
     // Read usr/etc/resolv.conf directly.
@@ -240,7 +241,8 @@ fn check_fsverity(storage: &Storage) -> Pin<Box<dyn Future<Output = FsckResult> 
 }
 
 async fn check_fsverity_inner(storage: &Storage) -> FsckResult {
-    let repo = &storage.repo();
+    let ostree = storage.get_ostree()?;
+    let repo = &ostree.repo();
     let verity_state = ostree_ext::fsverity::is_verity_enabled(repo)?;
     tracing::debug!(
         "verity: expected={:?} found={:?}",
@@ -249,7 +251,7 @@ async fn check_fsverity_inner(storage: &Storage) -> FsckResult {
     );
 
     let verity_found_state =
-        verity_state_of_all_objects(&storage.repo(), verity_state.desired == Tristate::Enabled)
+        verity_state_of_all_objects(&ostree.repo(), verity_state.desired == Tristate::Enabled)
             .await?;
     let Some((missing, rest)) = collect_until(
         verity_found_state.missing.iter(),

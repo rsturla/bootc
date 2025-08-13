@@ -24,6 +24,7 @@ use ostree_ext::container as ostree_container;
 use ostree_ext::container_utils::ostree_booted;
 use ostree_ext::keyfileext::KeyFileExt;
 use ostree_ext::ostree;
+use ostree_ext::sysroot::SysrootLock;
 use schemars::schema_for;
 use serde::{Deserialize, Serialize};
 
@@ -778,13 +779,9 @@ fn has_soft_reboot_capability(deployment: Option<&crate::spec::BootEntry>) -> bo
 
 /// Prepare a soft reboot for the given deployment
 #[context("Preparing soft reboot")]
-fn prepare_soft_reboot(
-    sysroot: &crate::store::Storage,
-    deployment: &ostree::Deployment,
-) -> Result<()> {
+fn prepare_soft_reboot(sysroot: &SysrootLock, deployment: &ostree::Deployment) -> Result<()> {
     let cancellable = ostree::gio::Cancellable::NONE;
     sysroot
-        .sysroot
         .deployment_set_soft_reboot(deployment, false, cancellable)
         .context("Failed to prepare soft-reboot")?;
     Ok(())
@@ -829,7 +826,7 @@ where
 /// Handle soft reboot for staged deployments (used by upgrade and switch)
 #[context("Handling staged soft reboot")]
 fn handle_staged_soft_reboot(
-    sysroot: &crate::store::Storage,
+    sysroot: &SysrootLock,
     soft_reboot_mode: Option<SoftRebootMode>,
     host: &crate::spec::Host,
 ) -> Result<()> {
@@ -843,7 +840,7 @@ fn handle_staged_soft_reboot(
 
 /// Perform a soft reboot for a staged deployment
 #[context("Soft reboot staged deployment")]
-fn soft_reboot_staged(sysroot: &crate::store::Storage) -> Result<()> {
+fn soft_reboot_staged(sysroot: &SysrootLock) -> Result<()> {
     println!("Staged deployment is soft-reboot capable, preparing for soft-reboot...");
 
     let deployments_list = sysroot.deployments();
@@ -858,7 +855,7 @@ fn soft_reboot_staged(sysroot: &crate::store::Storage) -> Result<()> {
 
 /// Perform a soft reboot for a rollback deployment
 #[context("Soft reboot rollback deployment")]
-fn soft_reboot_rollback(sysroot: &crate::store::Storage) -> Result<()> {
+fn soft_reboot_rollback(sysroot: &SysrootLock) -> Result<()> {
     println!("Rollback deployment is soft-reboot capable, preparing for soft-reboot...");
 
     let deployments_list = sysroot.deployments();
@@ -910,9 +907,9 @@ fn prepare_for_write() -> Result<()> {
 #[context("Upgrading")]
 async fn upgrade(opts: UpgradeOpts) -> Result<()> {
     let sysroot = &get_storage().await?;
-    let repo = &sysroot.repo();
-    let (booted_deployment, _deployments, host) =
-        crate::status::get_status_require_booted(sysroot)?;
+    let ostree = sysroot.get_ostree()?;
+    let repo = &ostree.repo();
+    let (booted_deployment, _deployments, host) = crate::status::get_status_require_booted(ostree)?;
     let imgref = host.spec.image.as_ref();
     let prog: ProgressWriter = opts.progress.try_into()?;
 
@@ -988,7 +985,7 @@ async fn upgrade(opts: UpgradeOpts) -> Result<()> {
             .unwrap_or_default();
         if staged_unchanged {
             println!("Staged update present, not changed.");
-            handle_staged_soft_reboot(sysroot, opts.soft_reboot, &host)?;
+            handle_staged_soft_reboot(ostree, opts.soft_reboot, &host)?;
             if opts.apply {
                 crate::reboot::reboot()?;
             }
@@ -1013,8 +1010,8 @@ async fn upgrade(opts: UpgradeOpts) -> Result<()> {
         if opts.soft_reboot.is_some() {
             // At this point we have new staged deployment and the host definition has changed.
             // We need the updated host status before we check if we can prepare the soft-reboot.
-            let updated_host = crate::status::get_status(sysroot, Some(&booted_deployment))?.1;
-            handle_staged_soft_reboot(sysroot, opts.soft_reboot, &updated_host)?;
+            let updated_host = crate::status::get_status(ostree, Some(&booted_deployment))?.1;
+            handle_staged_soft_reboot(ostree, opts.soft_reboot, &updated_host)?;
         }
 
         if opts.apply {
@@ -1058,9 +1055,9 @@ async fn switch(opts: SwitchOpts) -> Result<()> {
     let cancellable = gio::Cancellable::NONE;
 
     let sysroot = &get_storage().await?;
-    let repo = &sysroot.repo();
-    let (booted_deployment, _deployments, host) =
-        crate::status::get_status_require_booted(sysroot)?;
+    let ostree = sysroot.get_ostree()?;
+    let repo = &ostree.repo();
+    let (booted_deployment, _deployments, host) = crate::status::get_status_require_booted(ostree)?;
 
     let new_spec = {
         let mut new_spec = host.spec.clone();
@@ -1095,8 +1092,8 @@ async fn switch(opts: SwitchOpts) -> Result<()> {
     if opts.soft_reboot.is_some() {
         // At this point we have staged the deployment and the host definition has changed.
         // We need the updated host status before we check if we can prepare the soft-reboot.
-        let updated_host = crate::status::get_status(sysroot, Some(&booted_deployment))?.1;
-        handle_staged_soft_reboot(sysroot, opts.soft_reboot, &updated_host)?;
+        let updated_host = crate::status::get_status(ostree, Some(&booted_deployment))?.1;
+        handle_staged_soft_reboot(ostree, opts.soft_reboot, &updated_host)?;
     }
 
     if opts.apply {
@@ -1110,17 +1107,18 @@ async fn switch(opts: SwitchOpts) -> Result<()> {
 #[context("Rollback")]
 async fn rollback(opts: RollbackOpts) -> Result<()> {
     let sysroot = &get_storage().await?;
+    let ostree = sysroot.get_ostree()?;
     crate::deploy::rollback(sysroot).await?;
 
     if opts.soft_reboot.is_some() {
         // Get status of rollback deployment to check soft-reboot capability
-        let host = crate::status::get_status_require_booted(sysroot)?.2;
+        let host = crate::status::get_status_require_booted(ostree)?.2;
 
         handle_soft_reboot(
             opts.soft_reboot,
             host.status.rollback.as_ref(),
             "rollback",
-            || soft_reboot_rollback(sysroot),
+            || soft_reboot_rollback(ostree),
         )?;
     }
 
@@ -1135,10 +1133,10 @@ async fn rollback(opts: RollbackOpts) -> Result<()> {
 #[context("Editing spec")]
 async fn edit(opts: EditOpts) -> Result<()> {
     let sysroot = &get_storage().await?;
-    let repo = &sysroot.repo();
+    let ostree = sysroot.get_ostree()?;
+    let repo = &ostree.repo();
 
-    let (booted_deployment, _deployments, host) =
-        crate::status::get_status_require_booted(sysroot)?;
+    let (booted_deployment, _deployments, host) = crate::status::get_status_require_booted(ostree)?;
     let new_host: Host = if let Some(filename) = opts.filename {
         let mut r = std::io::BufReader::new(std::fs::File::open(filename)?);
         serde_yaml::from_reader(&mut r)?

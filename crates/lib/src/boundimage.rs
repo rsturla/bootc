@@ -39,7 +39,7 @@ pub(crate) struct ResolvedBoundImage {
 
 /// Given a deployment, pull all container images it references.
 pub(crate) async fn pull_bound_images(sysroot: &Storage, deployment: &Deployment) -> Result<()> {
-    let bound_images = query_bound_images_for_deployment(sysroot, deployment)?;
+    let bound_images = query_bound_images_for_deployment(sysroot.get_ostree()?, deployment)?;
     pull_images(sysroot, bound_images).await
 }
 
