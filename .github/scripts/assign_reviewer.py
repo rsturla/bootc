@@ -240,17 +240,11 @@ def get_existing_reviewers(pr_number: str) -> List[str]:
 
 
 def assign_reviewer(pr_number: str, reviewer: str) -> None:
-    """Assign a reviewer to the PR using GitHub API directly."""
+    """Assign a reviewer to the PR using GitHub CLI."""
     print(f"Attempting to assign reviewer {reviewer} to PR {pr_number}")
     
-    # Use GitHub API directly to avoid organization team issues
-    # Get the repository from environment or default to bootc-dev/bootc
-    repo = os.environ.get('GITHUB_REPOSITORY', 'bootc-dev/bootc')
-    
     run_gh_command(
-        ['api', f'repos/{repo}/pulls/{pr_number}/requested_reviewers',
-         '-f', f'reviewers=["{reviewer}"]',
-         '-X', 'POST'],
+        ['pr', 'edit', pr_number, '--add-reviewer', reviewer],
         f"Error assigning reviewer {reviewer} to PR {pr_number}"
     )
     print(f"Successfully assigned reviewer {reviewer} to PR {pr_number}")
