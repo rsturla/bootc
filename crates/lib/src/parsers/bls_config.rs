@@ -5,6 +5,7 @@
 use anyhow::{anyhow, Result};
 use std::collections::HashMap;
 use std::fmt::Display;
+use uapi_version::Version;
 
 /// Represents a single Boot Loader Specification config file.
 ///
@@ -18,7 +19,9 @@ pub(crate) struct BLSConfig {
     pub(crate) title: Option<String>,
     /// The version of the boot entry.
     /// See <https://uapi-group.org/specifications/specs/version_format_specification/>
-    pub(crate) version: String,
+    ///
+    /// This is hidden and must be accessed via [`Self::version()`];
+    version: String,
     /// The path to the linux kernel to boot.
     pub(crate) linux: String,
     /// The paths to the initrd images.
@@ -63,8 +66,7 @@ impl Ord for BLSConfig {
         }
 
         // Finally, sort by version in descending order.
-        // FIXME: This should use <https://uapi-group.org/specifications/specs/version_format_specification/>
-        self.version.cmp(&other.version).reverse()
+        self.version().cmp(&other.version()).reverse()
     }
 }
 
@@ -94,6 +96,12 @@ impl Display for BLSConfig {
         }
 
         Ok(())
+    }
+}
+
+impl BLSConfig {
+    pub(crate) fn version(&self) -> Version {
+        Version::from(&self.version)
     }
 }
 
@@ -392,6 +400,33 @@ mod tests {
         )?;
 
         assert!(config1 > config2);
+        Ok(())
+    }
+
+    #[test]
+    fn test_ordering_by_nontrivial_version() -> Result<()> {
+        let config_final = parse_bls_config(
+            r#"
+            title Entry 1
+            version 1.0
+            linux /vmlinuz-1
+            initrd /initrd-1
+        "#,
+        )?;
+
+        let config_rc1 = parse_bls_config(
+            r#"
+            title Entry 2
+            version 1.0~rc1
+            linux /vmlinuz-2
+            initrd /initrd-2
+        "#,
+        )?;
+
+        // In a sorted list, we want 1.0 to appear before 1.0~rc1 because
+        // versions are sorted descending. This means that in Rust's sort order,
+        // config_final should be "less than" config_rc1.
+        assert!(config_final < config_rc1);
         Ok(())
     }
 }
