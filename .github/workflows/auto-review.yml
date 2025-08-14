@@ -3,6 +3,7 @@ name: Auto Assign Reviewer
 on:
   pull_request_target:
     types: [opened, ready_for_review]
+  workflow_dispatch: {}
 
 permissions:
   pull-requests: write
@@ -26,13 +27,9 @@ jobs:
           python -m pip install --upgrade pip
           pip install pyyaml
           
-      - name: Authenticate with GitHub
-        run: echo "${{ secrets.GH_PAT }}" | gh auth login --with-token
-        env:
-          GH_TOKEN: ${{ secrets.GH_PAT }}
-          
       - name: Assign reviewer
         env:
           PR_NUMBER: ${{ github.event.pull_request.number }}
+          GH_TOKEN: ${{ github.token }}
         run: |
           python .github/scripts/assign_reviewer.py
