@@ -251,7 +251,12 @@ impl LoopbackDevice {
 
         // Create the helper process
         let mut cmd = Command::new(bootc_path);
-        cmd.args(["loopback-cleanup-helper", "--device", device_path]);
+        cmd.args([
+            "internals",
+            "loopback-cleanup-helper",
+            "--device",
+            device_path,
+        ]);
 
         // Set environment variable to indicate this is a cleanup helper
         cmd.env("BOOTC_LOOPBACK_CLEANUP_HELPER", "1");
