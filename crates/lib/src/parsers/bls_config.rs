@@ -2,40 +2,69 @@
 //!
 //! This module parses the config files for the spec.
 
-use anyhow::Result;
-use serde::de::Error;
-use serde::{Deserialize, Deserializer};
+use anyhow::{anyhow, Result};
 use std::collections::HashMap;
 use std::fmt::Display;
 
-#[derive(Debug, Deserialize, Eq)]
+/// Represents a single Boot Loader Specification config file.
+///
+/// The boot loader should present the available boot menu entries to the user in a sorted list.
+/// The list should be sorted by the `sort-key` field, if it exists, otherwise by the `machine-id` field.
+/// If multiple entries have the same `sort-key` (or `machine-id`), they should be sorted by the `version` field in descending order.
+#[derive(Debug, Eq, PartialEq)]
+#[non_exhaustive]
 pub(crate) struct BLSConfig {
+    /// The title of the boot entry, to be displayed in the boot menu.
     pub(crate) title: Option<String>,
-    #[serde(deserialize_with = "deserialize_version")]
-    pub(crate) version: u32,
+    /// The version of the boot entry.
+    /// See <https://uapi-group.org/specifications/specs/version_format_specification/>
+    pub(crate) version: String,
+    /// The path to the linux kernel to boot.
     pub(crate) linux: String,
-    pub(crate) initrd: String,
-    pub(crate) options: String,
+    /// The paths to the initrd images.
+    pub(crate) initrd: Vec<String>,
+    /// Kernel command line options.
+    pub(crate) options: Option<String>,
+    /// The machine ID of the OS.
+    pub(crate) machine_id: Option<String>,
+    /// The sort key for the boot menu.
+    pub(crate) sort_key: Option<String>,
 
-    #[serde(flatten)]
+    /// Any extra fields not defined in the spec.
     pub(crate) extra: HashMap<String, String>,
-}
-
-impl PartialEq for BLSConfig {
-    fn eq(&self, other: &Self) -> bool {
-        self.version == other.version
-    }
 }
 
 impl PartialOrd for BLSConfig {
     fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
-        self.version.partial_cmp(&other.version)
+        Some(self.cmp(other))
     }
 }
 
 impl Ord for BLSConfig {
+    /// This implements the sorting logic from the Boot Loader Specification.
+    ///
+    /// The list should be sorted by the `sort-key` field, if it exists, otherwise by the `machine-id` field.
+    /// If multiple entries have the same `sort-key` (or `machine-id`), they should be sorted by the `version` field in descending order.
     fn cmp(&self, other: &Self) -> std::cmp::Ordering {
-        self.version.cmp(&other.version)
+        // If both configs have a sort key, compare them.
+        if let (Some(key1), Some(key2)) = (&self.sort_key, &other.sort_key) {
+            let ord = key1.cmp(key2);
+            if ord != std::cmp::Ordering::Equal {
+                return ord;
+            }
+        }
+
+        // If both configs have a machine ID, compare them.
+        if let (Some(id1), Some(id2)) = (&self.machine_id, &other.machine_id) {
+            let ord = id1.cmp(id2);
+            if ord != std::cmp::Ordering::Equal {
+                return ord;
+            }
+        }
+
+        // Finally, sort by version in descending order.
+        // FIXME: This should use <https://uapi-group.org/specifications/specs/version_format_specification/>
+        self.version.cmp(&other.version).reverse()
     }
 }
 
@@ -47,8 +76,18 @@ impl Display for BLSConfig {
 
         writeln!(f, "version {}", self.version)?;
         writeln!(f, "linux {}", self.linux)?;
-        writeln!(f, "initrd {}", self.initrd)?;
-        writeln!(f, "options {}", self.options)?;
+        for initrd in self.initrd.iter() {
+            writeln!(f, "initrd {}", initrd)?;
+        }
+        if let Some(options) = self.options.as_deref() {
+            writeln!(f, "options {}", options)?;
+        }
+        if let Some(machine_id) = self.machine_id.as_deref() {
+            writeln!(f, "machine-id {}", machine_id)?;
+        }
+        if let Some(sort_key) = self.sort_key.as_deref() {
+            writeln!(f, "sort-key {}", sort_key)?;
+        }
 
         for (key, value) in &self.extra {
             writeln!(f, "{} {}", key, value)?;
@@ -58,20 +97,15 @@ impl Display for BLSConfig {
     }
 }
 
-fn deserialize_version<'de, D>(deserializer: D) -> Result<u32, D::Error>
-where
-    D: Deserializer<'de>,
-{
-    let s: Option<String> = Option::deserialize(deserializer)?;
-
-    match s {
-        Some(s) => Ok(s.parse::<u32>().map_err(D::Error::custom)?),
-        None => Err(D::Error::custom("Version not found")),
-    }
-}
-
 pub(crate) fn parse_bls_config(input: &str) -> Result<BLSConfig> {
-    let mut map = HashMap::new();
+    let mut title = None;
+    let mut version = None;
+    let mut linux = None;
+    let mut initrd = Vec::new();
+    let mut options = None;
+    let mut machine_id = None;
+    let mut sort_key = None;
+    let mut extra = HashMap::new();
 
     for line in input.lines() {
         let line = line.trim();
@@ -80,14 +114,35 @@ pub(crate) fn parse_bls_config(input: &str) -> Result<BLSConfig> {
         }
 
         if let Some((key, value)) = line.split_once(' ') {
-            map.insert(key.to_string(), value.trim().to_string());
+            let value = value.trim().to_string();
+            match key {
+                "title" => title = Some(value),
+                "version" => version = Some(value),
+                "linux" => linux = Some(value),
+                "initrd" => initrd.push(value),
+                "options" => options = Some(value),
+                "machine-id" => machine_id = Some(value),
+                "sort-key" => sort_key = Some(value),
+                _ => {
+                    extra.insert(key.to_string(), value);
+                }
+            }
         }
     }
 
-    let value = serde_json::to_value(map)?;
-    let parsed: BLSConfig = serde_json::from_value(value)?;
+    let linux = linux.ok_or_else(|| anyhow!("Missing 'linux' value"))?;
+    let version = version.ok_or_else(|| anyhow!("Missing 'version' value"))?;
 
-    Ok(parsed)
+    Ok(BLSConfig {
+        title,
+        version,
+        linux,
+        initrd,
+        options,
+        machine_id,
+        sort_key,
+        extra,
+    })
 }
 
 #[cfg(test)]
@@ -112,12 +167,33 @@ mod tests {
             config.title,
             Some("Fedora 42.20250623.3.1 (CoreOS)".to_string())
         );
-        assert_eq!(config.version, 2);
+        assert_eq!(config.version, "2");
         assert_eq!(config.linux, "/boot/7e11ac46e3e022053e7226a20104ac656bf72d1a84e3a398b7cce70e9df188b6/vmlinuz-5.14.10");
-        assert_eq!(config.initrd, "/boot/7e11ac46e3e022053e7226a20104ac656bf72d1a84e3a398b7cce70e9df188b6/initramfs-5.14.10.img");
-        assert_eq!(config.options, "root=UUID=abc123 rw composefs=7e11ac46e3e022053e7226a20104ac656bf72d1a84e3a398b7cce70e9df188b6");
+        assert_eq!(config.initrd, vec!["/boot/7e11ac46e3e022053e7226a20104ac656bf72d1a84e3a398b7cce70e9df188b6/initramfs-5.14.10.img"]);
+        assert_eq!(config.options, Some("root=UUID=abc123 rw composefs=7e11ac46e3e022053e7226a20104ac656bf72d1a84e3a398b7cce70e9df188b6".to_string()));
         assert_eq!(config.extra.get("custom1"), Some(&"value1".to_string()));
         assert_eq!(config.extra.get("custom2"), Some(&"value2".to_string()));
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_parse_multiple_initrd() -> Result<()> {
+        let input = r#"
+            title Fedora 42.20250623.3.1 (CoreOS)
+            version 2
+            linux /boot/vmlinuz
+            initrd /boot/initramfs-1.img
+            initrd /boot/initramfs-2.img
+            options root=UUID=abc123 rw
+        "#;
+
+        let config = parse_bls_config(input)?;
+
+        assert_eq!(
+            config.initrd,
+            vec!["/boot/initramfs-1.img", "/boot/initramfs-2.img"]
+        );
 
         Ok(())
     }
@@ -136,13 +212,12 @@ mod tests {
     }
 
     #[test]
-    fn test_parse_invalid_version_format() {
+    fn test_parse_missing_linux() {
         let input = r#"
             title Fedora
-            version not_an_int
-            linux /vmlinuz
+            version 1
             initrd /initramfs.img
-            options root=UUID=abc composefs=some-uuid
+            options root=UUID=xyz ro quiet
         "#;
 
         let parsed = parse_bls_config(input);
@@ -156,6 +231,7 @@ mod tests {
             version 10
             linux /boot/vmlinuz
             initrd /boot/initrd.img
+            initrd /boot/initrd-extra.img
             options root=UUID=abc composefs=some-uuid
             foo bar
         "#;
@@ -170,6 +246,10 @@ mod tests {
         assert_eq!(output_lines.next().unwrap(), "initrd /boot/initrd.img");
         assert_eq!(
             output_lines.next().unwrap(),
+            "initrd /boot/initrd-extra.img"
+        );
+        assert_eq!(
+            output_lines.next().unwrap(),
             "options root=UUID=abc composefs=some-uuid"
         );
         assert_eq!(output_lines.next().unwrap(), "foo bar");
@@ -178,7 +258,7 @@ mod tests {
     }
 
     #[test]
-    fn test_ordering() -> Result<()> {
+    fn test_ordering_by_version() -> Result<()> {
         let config1 = parse_bls_config(
             r#"
             title Entry 1
@@ -199,7 +279,119 @@ mod tests {
         "#,
         )?;
 
+        assert!(config1 > config2);
+        Ok(())
+    }
+
+    #[test]
+    fn test_ordering_by_sort_key() -> Result<()> {
+        let config1 = parse_bls_config(
+            r#"
+            title Entry 1
+            version 3
+            sort-key a
+            linux /vmlinuz-3
+            initrd /initrd-3
+            options opt1
+        "#,
+        )?;
+
+        let config2 = parse_bls_config(
+            r#"
+            title Entry 2
+            version 5
+            sort-key b
+            linux /vmlinuz-5
+            initrd /initrd-5
+            options opt2
+        "#,
+        )?;
+
         assert!(config1 < config2);
+        Ok(())
+    }
+
+    #[test]
+    fn test_ordering_by_sort_key_and_version() -> Result<()> {
+        let config1 = parse_bls_config(
+            r#"
+            title Entry 1
+            version 3
+            sort-key a
+            linux /vmlinuz-3
+            initrd /initrd-3
+            options opt1
+        "#,
+        )?;
+
+        let config2 = parse_bls_config(
+            r#"
+            title Entry 2
+            version 5
+            sort-key a
+            linux /vmlinuz-5
+            initrd /initrd-5
+            options opt2
+        "#,
+        )?;
+
+        assert!(config1 > config2);
+        Ok(())
+    }
+
+    #[test]
+    fn test_ordering_by_machine_id() -> Result<()> {
+        let config1 = parse_bls_config(
+            r#"
+            title Entry 1
+            version 3
+            machine-id a
+            linux /vmlinuz-3
+            initrd /initrd-3
+            options opt1
+        "#,
+        )?;
+
+        let config2 = parse_bls_config(
+            r#"
+            title Entry 2
+            version 5
+            machine-id b
+            linux /vmlinuz-5
+            initrd /initrd-5
+            options opt2
+        "#,
+        )?;
+
+        assert!(config1 < config2);
+        Ok(())
+    }
+
+    #[test]
+    fn test_ordering_by_machine_id_and_version() -> Result<()> {
+        let config1 = parse_bls_config(
+            r#"
+            title Entry 1
+            version 3
+            machine-id a
+            linux /vmlinuz-3
+            initrd /initrd-3
+            options opt1
+        "#,
+        )?;
+
+        let config2 = parse_bls_config(
+            r#"
+            title Entry 2
+            version 5
+            machine-id a
+            linux /vmlinuz-5
+            initrd /initrd-5
+            options opt2
+        "#,
+        )?;
+
+        assert!(config1 > config2);
         Ok(())
     }
 }
