@@ -1,3 +1,14 @@
+/// A variant of `println!` that flushes stdout.
+macro_rules! println_flush {
+    ($($arg:tt)*) => {
+        {
+            use std::io::Write;
+            println!($($arg)*);
+            std::io::stdout().flush().unwrap();
+        }
+    };
+}
+
 use crate::{btrfs, lvm, prompt, users::get_all_users_keys};
 use anyhow::{ensure, Context, Result};
 
@@ -46,7 +57,7 @@ fn prompt_user_selection(
 
 pub(crate) fn reboot() -> Result<()> {
     let delay_seconds = 10;
-    println!(
+    println_flush!(
         "Operation complete, rebooting in {delay_seconds} seconds. Press Ctrl-C to cancel reboot, or press enter to continue immediately.",
     );
 
@@ -70,13 +81,13 @@ pub(crate) fn reboot() -> Result<()> {
 /// final prompting UX in https://github.com/bootc-dev/bootc/discussions/1060
 pub(crate) fn temporary_developer_protection_prompt() -> Result<()> {
     // Print an empty line so that the warning stands out from the rest of the output
-    println!();
+    println_flush!();
 
     let prompt = "NOTICE: This will replace the installed operating system and reboot. Are you sure you want to continue?";
     let answer = ask_yes_no(prompt, false)?;
 
     if !answer {
-        println!("Exiting without reinstalling the system.");
+        println_flush!("Exiting without reinstalling the system.");
         std::process::exit(0);
     }
 
