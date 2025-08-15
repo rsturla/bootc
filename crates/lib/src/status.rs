@@ -13,12 +13,16 @@ use ostree_ext::container as ostree_container;
 use ostree_ext::container_utils::ostree_booted;
 use ostree_ext::keyfileext::KeyFileExt;
 use ostree_ext::oci_spec;
+use ostree_ext::oci_spec::image::Digest;
+use ostree_ext::oci_spec::image::ImageConfiguration;
 use ostree_ext::ostree;
+use ostree_ext::sysroot::SysrootLock;
 
 use crate::cli::OutputFormat;
+use crate::spec::ImageStatus;
 use crate::spec::{BootEntry, BootOrder, Host, HostSpec, HostStatus, HostType};
 use crate::spec::{ImageReference, ImageSignature};
-use crate::store::{CachedImageStatus, ContainerImageStore, Storage};
+use crate::store::{CachedImageStatus, Storage};
 
 impl From<ostree_container::SignatureSource> for ImageSignature {
     fn from(sig: ostree_container::SignatureSource) -> Self {
@@ -109,6 +113,51 @@ pub(crate) fn labels_of_config(
     config.config().as_ref().and_then(|c| c.labels().as_ref())
 }
 
+/// Convert between a subset of ostree-ext metadata and the exposed spec API.
+fn create_imagestatus(
+    image: ImageReference,
+    manifest_digest: &Digest,
+    config: &ImageConfiguration,
+) -> ImageStatus {
+    let labels = labels_of_config(config);
+    let timestamp = labels
+        .and_then(|l| {
+            l.get(oci_spec::image::ANNOTATION_CREATED)
+                .map(|s| s.as_str())
+        })
+        .or_else(|| config.created().as_deref())
+        .and_then(bootc_utils::try_deserialize_timestamp);
+
+    let version = ostree_container::version_for_config(config).map(ToOwned::to_owned);
+    let architecture = config.architecture().to_string();
+    ImageStatus {
+        image,
+        version,
+        timestamp,
+        image_digest: manifest_digest.to_string(),
+        architecture,
+    }
+}
+
+fn imagestatus(
+    sysroot: &SysrootLock,
+    deployment: &ostree::Deployment,
+    image: ostree_container::OstreeImageReference,
+) -> Result<CachedImageStatus> {
+    let repo = &sysroot.repo();
+    let imgstate = ostree_container::store::query_image_commit(repo, &deployment.csum())?;
+    let image = ImageReference::from(image);
+    let cached = imgstate
+        .cached_update
+        .map(|cached| create_imagestatus(image.clone(), &cached.manifest_digest, &cached.config));
+    let imagestatus = create_imagestatus(image, &imgstate.manifest_digest, &imgstate.configuration);
+
+    Ok(CachedImageStatus {
+        image: Some(imagestatus),
+        cached_update: cached,
+    })
+}
+
 /// Given an OSTree deployment, parse out metadata into our spec.
 #[context("Reading deployment metadata")]
 fn boot_entry_from_deployment(
@@ -116,7 +165,6 @@ fn boot_entry_from_deployment(
     deployment: &ostree::Deployment,
 ) -> Result<BootEntry> {
     let (
-        store,
         CachedImageStatus {
             image,
             cached_update,
@@ -124,26 +172,22 @@ fn boot_entry_from_deployment(
         incompatible,
     ) = if let Some(origin) = deployment.origin().as_ref() {
         let incompatible = crate::utils::origin_has_rpmostree_stuff(origin);
-        let (store, cached_imagestatus) = if incompatible {
+        let cached_imagestatus = if incompatible {
             // If there are local changes, we can't represent it as a bootc compatible image.
-            (None, CachedImageStatus::default())
+            CachedImageStatus::default()
         } else if let Some(image) = get_image_origin(origin)? {
-            let store = deployment.store()?;
-            let store = store.as_ref().unwrap_or(&sysroot.store);
-            let spec = Some(store.spec());
-            let status = store.imagestatus(sysroot, deployment, image)?;
-
-            (spec, status)
+            imagestatus(sysroot, deployment, image)?
         } else {
             // The deployment isn't using a container image
-            (None, CachedImageStatus::default())
+            CachedImageStatus::default()
         };
-        (store, cached_imagestatus, incompatible)
+        (cached_imagestatus, incompatible)
     } else {
         // The deployment has no origin at all (this generally shouldn't happen)
-        (None, CachedImageStatus::default(), false)
+        (CachedImageStatus::default(), false)
     };
 
+    let store = Some(crate::spec::Store::OstreeContainer);
     let r = BootEntry {
         image,
         cached_update,
