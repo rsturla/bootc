@@ -279,6 +279,7 @@ dependencies = [
  "tokio-util",
  "toml 0.9.5",
  "tracing",
+ "uapi-version",
  "uuid",
  "xshell",
 ]
@@ -2869,6 +2870,12 @@ name = "typenum"
 version = "1.18.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "1dccffe3ce07af9386bfd29e80c0ab1a8205a2fc34e4bcd40364df902cfa8f3f"
+
+[[package]]
+name = "uapi-version"
+version = "0.4.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "849f6b1fe8a0fb07170737d7f3acf72cac5462fb3f4e86614474a49f7fac3b65"
 
 [[package]]
 name = "unicase"

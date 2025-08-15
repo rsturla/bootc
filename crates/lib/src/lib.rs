@@ -36,7 +36,8 @@ mod containerenv;
 mod install;
 mod kernel_cmdline;
 
-#[cfg(feature = "grub")]
+#[cfg(feature = "composefs-backend")]
+#[allow(dead_code)]
 pub(crate) mod parsers;
 #[cfg(feature = "rhsm")]
 mod rhsm;
