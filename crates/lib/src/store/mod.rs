@@ -58,7 +58,7 @@ pub(crate) struct Storage {
     /// The OSTree storage
     ostree: SysrootLock,
     /// The composefs storage
-    pub composefs: OnceCell<Arc<ComposefsRepository>>,
+    composefs: OnceCell<Arc<ComposefsRepository>>,
     /// The containers-image storage used foR LBIs
     imgstore: OnceCell<crate::imgstorage::Storage>,
 
