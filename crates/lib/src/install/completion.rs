@@ -14,7 +14,7 @@ use ostree_ext::{gio, ostree};
 use rustix::fs::Mode;
 use rustix::fs::OFlags;
 
-use crate::imgstorage::CStorage;
+use crate::podstorage::CStorage;
 use crate::utils::deployment_fd;
 
 use super::config;

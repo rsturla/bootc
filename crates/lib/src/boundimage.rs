@@ -13,7 +13,7 @@ use fn_error_context::context;
 use ostree_ext::containers_image_proxy;
 use ostree_ext::ostree::Deployment;
 
-use crate::imgstorage::{CStorage, PullMode};
+use crate::podstorage::{CStorage, PullMode};
 use crate::store::Storage;
 
 /// The path in a root for bound images; this directory should only contain

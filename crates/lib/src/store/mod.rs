@@ -30,8 +30,8 @@ use ostree_ext::ostree;
 use ostree_ext::sysroot::SysrootLock;
 use rustix::fs::Mode;
 
-use crate::imgstorage::CStorage;
 use crate::lsm;
+use crate::podstorage::CStorage;
 use crate::spec::ImageStatus;
 use crate::utils::deployment_fd;
 

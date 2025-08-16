@@ -14,7 +14,7 @@ use serde::Serialize;
 use crate::{
     boundimage::query_bound_images,
     cli::{ImageListFormat, ImageListType},
-    imgstorage::{ensure_floating_c_storage_initialized, CStorage},
+    podstorage::{ensure_floating_c_storage_initialized, CStorage},
 };
 
 /// The name of the image we push to containers-storage if nothing is specified.
