@@ -30,6 +30,7 @@ use ostree_ext::ostree;
 use ostree_ext::sysroot::SysrootLock;
 use rustix::fs::Mode;
 
+use crate::imgstorage::CStorage;
 use crate::lsm;
 use crate::spec::ImageStatus;
 use crate::utils::deployment_fd;
@@ -60,7 +61,7 @@ pub(crate) struct Storage {
     /// The composefs storage
     composefs: OnceCell<Arc<ComposefsRepository>>,
     /// The containers-image storage used foR LBIs
-    imgstore: OnceCell<crate::imgstorage::Storage>,
+    imgstore: OnceCell<CStorage>,
 
     /// Our runtime state
     run: Dir,
@@ -113,7 +114,7 @@ impl Storage {
     }
 
     /// Access the image storage; will automatically initialize it if necessary.
-    pub(crate) fn get_ensure_imgstore(&self) -> Result<&crate::imgstorage::Storage> {
+    pub(crate) fn get_ensure_imgstore(&self) -> Result<&CStorage> {
         if let Some(imgstore) = self.imgstore.get() {
             return Ok(imgstore);
         }
@@ -136,8 +137,7 @@ impl Storage {
 
         tracing::trace!("sepolicy in get_ensure_imgstore: {sepolicy:?}");
 
-        let imgstore =
-            crate::imgstorage::Storage::create(&sysroot_dir, &self.run, sepolicy.as_ref())?;
+        let imgstore = CStorage::create(&sysroot_dir, &self.run, sepolicy.as_ref())?;
         Ok(self.imgstore.get_or_init(|| imgstore))
     }
 

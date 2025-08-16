@@ -13,7 +13,7 @@ use fn_error_context::context;
 use ostree_ext::containers_image_proxy;
 use ostree_ext::ostree::Deployment;
 
-use crate::imgstorage::PullMode;
+use crate::imgstorage::{CStorage, PullMode};
 use crate::store::Storage;
 
 /// The path in a root for bound images; this directory should only contain
@@ -158,7 +158,7 @@ pub(crate) async fn pull_images(
 
 #[context("Pulling bound images")]
 pub(crate) async fn pull_images_impl(
-    imgstore: &crate::imgstorage::Storage,
+    imgstore: &CStorage,
     bound_images: Vec<crate::boundimage::BoundImage>,
 ) -> Result<()> {
     let n = bound_images.len();

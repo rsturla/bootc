@@ -1,9 +1,12 @@
-//! # bootc-managed container storage
+//! # bootc-managed instance of containers-storage:
 //!
-//! The default storage for this project uses ostree, canonically storing all of its state in
-//! `/sysroot/ostree`.
+//! The backend for podman and other tools is known as `container-storage:`,
+//! with a canonical instance that lives in `/var/lib/containers`.
 //!
-//! This containers-storage: which canonically lives in `/sysroot/ostree/bootc`.
+//! This is a `containers-storage:` instance` which is owned by bootc and
+//! is stored at `/sysroot/ostree/bootc`.
+//!
+//! At the current time, this is only used for Logically Bound Images.
 
 use std::collections::HashSet;
 use std::io::Seek;
@@ -43,7 +46,9 @@ pub(crate) const SUBPATH: &str = "storage";
 /// The path to the "runroot" with transient runtime state; this is
 /// relative to the /run directory
 const RUNROOT: &str = "bootc/storage";
-pub(crate) struct Storage {
+
+/// A bootc-owned instance of `containers-storage:`.
+pub(crate) struct CStorage {
     /// The root directory
     sysroot: Dir,
     /// The location of container storage
@@ -147,7 +152,7 @@ pub(crate) fn ensure_floating_c_storage_initialized() {
     }
 }
 
-impl Storage {
+impl CStorage {
     /// Create a `podman image` Command instance prepared to operate on our alternative
     /// root.
     pub(crate) fn new_image_cmd(&self) -> Result<Command> {
@@ -380,5 +385,5 @@ impl Storage {
 #[cfg(test)]
 mod tests {
     use super::*;
-    static_assertions::assert_not_impl_any!(Storage: Sync);
+    static_assertions::assert_not_impl_any!(CStorage: Sync);
 }

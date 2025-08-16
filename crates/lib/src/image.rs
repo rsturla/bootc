@@ -14,7 +14,7 @@ use serde::Serialize;
 use crate::{
     boundimage::query_bound_images,
     cli::{ImageListFormat, ImageListType},
-    imgstorage::ensure_floating_c_storage_initialized,
+    imgstorage::{ensure_floating_c_storage_initialized, CStorage},
 };
 
 /// The name of the image we push to containers-storage if nothing is specified.
@@ -172,7 +172,7 @@ pub(crate) async fn push_entrypoint(source: Option<&str>, target: Option<&str>) 
 /// Thin wrapper for invoking `podman image <X>` but set up for our internal
 /// image store (as distinct from /var/lib/containers default).
 pub(crate) async fn imgcmd_entrypoint(
-    storage: &crate::imgstorage::Storage,
+    storage: &CStorage,
     arg: &str,
     args: &[std::ffi::OsString],
 ) -> std::result::Result<(), anyhow::Error> {
