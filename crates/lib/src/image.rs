@@ -14,7 +14,7 @@ use serde::Serialize;
 use crate::{
     boundimage::query_bound_images,
     cli::{ImageListFormat, ImageListType},
-    imgstorage::ensure_floating_c_storage_initialized,
+    podstorage::{ensure_floating_c_storage_initialized, CStorage},
 };
 
 /// The name of the image we push to containers-storage if nothing is specified.
@@ -42,7 +42,8 @@ struct ImageOutput {
 
 #[context("Listing host images")]
 fn list_host_images(sysroot: &crate::store::Storage) -> Result<Vec<ImageOutput>> {
-    let repo = sysroot.repo();
+    let ostree = sysroot.get_ostree()?;
+    let repo = ostree.repo();
     let images = ostree_ext::container::store::list_images(&repo).context("Querying images")?;
 
     Ok(images
@@ -129,8 +130,8 @@ pub(crate) async fn list_entrypoint(
 pub(crate) async fn push_entrypoint(source: Option<&str>, target: Option<&str>) -> Result<()> {
     let transport = Transport::ContainerStorage;
     let sysroot = crate::cli::get_storage().await?;
-
-    let repo = &sysroot.repo();
+    let ostree = sysroot.get_ostree()?;
+    let repo = &ostree.repo();
 
     // If the target isn't specified, push to containers-storage + our default image
     let target = if let Some(target) = target {
@@ -150,7 +151,7 @@ pub(crate) async fn push_entrypoint(source: Option<&str>, target: Option<&str>) 
     let source = if let Some(source) = source {
         ImageReference::try_from(source).context("Parsing source image")?
     } else {
-        let status = crate::status::get_status_require_booted(&sysroot)?;
+        let status = crate::status::get_status_require_booted(&ostree)?;
         // SAFETY: We know it's booted
         let booted = status.2.status.booted.unwrap();
         let booted_image = booted.image.unwrap().image;
@@ -171,7 +172,7 @@ pub(crate) async fn push_entrypoint(source: Option<&str>, target: Option<&str>) 
 /// Thin wrapper for invoking `podman image <X>` but set up for our internal
 /// image store (as distinct from /var/lib/containers default).
 pub(crate) async fn imgcmd_entrypoint(
-    storage: &crate::imgstorage::Storage,
+    storage: &CStorage,
     arg: &str,
     args: &[std::ffi::OsString],
 ) -> std::result::Result<(), anyhow::Error> {

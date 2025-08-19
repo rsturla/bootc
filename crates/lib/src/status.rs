@@ -22,7 +22,7 @@ use crate::cli::OutputFormat;
 use crate::spec::ImageStatus;
 use crate::spec::{BootEntry, BootOrder, Host, HostSpec, HostStatus, HostType};
 use crate::spec::{ImageReference, ImageSignature};
-use crate::store::{CachedImageStatus, Storage};
+use crate::store::CachedImageStatus;
 
 impl From<ostree_container::SignatureSource> for ImageSignature {
     fn from(sig: ostree_container::SignatureSource) -> Self {
@@ -91,7 +91,7 @@ impl From<ImageReference> for OstreeImageReference {
 }
 
 /// Check if a deployment has soft reboot capability
-fn has_soft_reboot_capability(sysroot: &Storage, deployment: &ostree::Deployment) -> bool {
+fn has_soft_reboot_capability(sysroot: &SysrootLock, deployment: &ostree::Deployment) -> bool {
     ostree_ext::systemd_has_soft_reboot() && sysroot.deployment_can_soft_reboot(deployment)
 }
 
@@ -166,7 +166,7 @@ fn imagestatus(
 /// Given an OSTree deployment, parse out metadata into our spec.
 #[context("Reading deployment metadata")]
 fn boot_entry_from_deployment(
-    sysroot: &Storage,
+    sysroot: &SysrootLock,
     deployment: &ostree::Deployment,
 ) -> Result<BootEntry> {
     let (
@@ -230,7 +230,7 @@ impl BootEntry {
 
 /// A variant of [`get_status`] that requires a booted deployment.
 pub(crate) fn get_status_require_booted(
-    sysroot: &Storage,
+    sysroot: &SysrootLock,
 ) -> Result<(ostree::Deployment, Deployments, Host)> {
     let booted_deployment = sysroot.require_booted_deployment()?;
     let (deployments, host) = get_status(sysroot, Some(&booted_deployment))?;
@@ -241,7 +241,7 @@ pub(crate) fn get_status_require_booted(
 /// a more native Rust structure.
 #[context("Computing status")]
 pub(crate) fn get_status(
-    sysroot: &Storage,
+    sysroot: &SysrootLock,
     booted_deployment: Option<&ostree::Deployment>,
 ) -> Result<(Deployments, Host)> {
     let stateroot = booted_deployment.as_ref().map(|d| d.osname());
@@ -347,8 +347,9 @@ pub(crate) async fn status(opts: super::cli::StatusOpts) -> Result<()> {
         Default::default()
     } else {
         let sysroot = super::cli::get_storage().await?;
-        let booted_deployment = sysroot.booted_deployment();
-        let (_deployments, host) = get_status(&sysroot, booted_deployment.as_ref())?;
+        let ostree = sysroot.get_ostree()?;
+        let booted_deployment = ostree.booted_deployment();
+        let (_deployments, host) = get_status(&ostree, booted_deployment.as_ref())?;
         host
     };
 

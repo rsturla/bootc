@@ -14,6 +14,7 @@ use ostree_ext::{gio, ostree};
 use rustix::fs::Mode;
 use rustix::fs::OFlags;
 
+use crate::podstorage::CStorage;
 use crate::utils::deployment_fd;
 
 use super::config;
@@ -297,8 +298,7 @@ pub(crate) async fn impl_completion(
 
         // When we're run through ostree, we only lazily initialize the podman storage to avoid
         // having a hard dependency on it.
-        let imgstorage =
-            &crate::imgstorage::Storage::create(&sysroot_dir, &rundir, sepolicy.as_ref())?;
+        let imgstorage = &CStorage::create(&sysroot_dir, &rundir, sepolicy.as_ref())?;
         crate::boundimage::pull_images_impl(imgstorage, bound_images)
             .await
             .context("pulling bound images")?;

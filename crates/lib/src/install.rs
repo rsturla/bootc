@@ -583,10 +583,7 @@ pub(crate) fn print_configuration() -> Result<()> {
 }
 
 #[context("Creating ostree deployment")]
-async fn initialize_ostree_root(
-    state: &State,
-    root_setup: &RootSetup,
-) -> Result<(Storage, bool, crate::imgstorage::Storage)> {
+async fn initialize_ostree_root(state: &State, root_setup: &RootSetup) -> Result<(Storage, bool)> {
     let sepolicy = state.load_policy()?;
     let sepolicy = sepolicy.as_ref();
     // Load a fd for the mounted target physical root
@@ -680,11 +677,11 @@ async fn initialize_ostree_root(
         )?;
     }
 
-    let imgstore = crate::imgstorage::Storage::create(&sysroot_dir, &temp_run, sepolicy)?;
-
     sysroot.load(cancellable)?;
     let sysroot = SysrootLock::new_from_sysroot(&sysroot).await?;
-    Ok((Storage::new(sysroot, &temp_run)?, has_ostree, imgstore))
+    let storage = Storage::new(sysroot, &temp_run)?;
+
+    Ok((storage, has_ostree))
 }
 
 fn check_disk_space(
@@ -1289,19 +1286,21 @@ async fn prepare_install(
 async fn install_with_sysroot(
     state: &State,
     rootfs: &RootSetup,
-    sysroot: &Storage,
+    storage: &Storage,
     boot_uuid: &str,
     bound_images: BoundImages,
     has_ostree: bool,
-    imgstore: &crate::imgstorage::Storage,
 ) -> Result<()> {
+    let ostree = storage.get_ostree()?;
+    let c_storage = storage.get_ensure_imgstore()?;
+
     // And actually set up the container in that root, returning a deployment and
     // the aleph state (see below).
-    let (deployment, aleph) = install_container(state, rootfs, &sysroot, has_ostree).await?;
+    let (deployment, aleph) = install_container(state, rootfs, ostree, has_ostree).await?;
     // Write the aleph data that captures the system state at the time of provisioning for aid in future debugging.
     aleph.write_to(&rootfs.physical_root)?;
 
-    let deployment_path = sysroot.deployment_dirpath(&deployment);
+    let deployment_path = ostree.deployment_dirpath(&deployment);
 
     if cfg!(target_arch = "s390x") {
         // TODO: Integrate s390x support into install_via_bootupd
@@ -1324,11 +1323,11 @@ async fn install_with_sysroot(
             // Now copy each bound image from the host's container storage into the target.
             for image in resolved_bound_images {
                 let image = image.image.as_str();
-                imgstore.pull_from_host_storage(image).await?;
+                c_storage.pull_from_host_storage(image).await?;
             }
         }
         BoundImages::Unresolved(bound_images) => {
-            crate::boundimage::pull_images_impl(imgstore, bound_images)
+            crate::boundimage::pull_images_impl(c_storage, bound_images)
                 .await
                 .context("pulling bound images")?;
         }
@@ -1408,7 +1407,7 @@ async fn install_to_filesystem_impl(
     // Initialize the ostree sysroot (repo, stateroot, etc.)
 
     {
-        let (sysroot, has_ostree, imgstore) = initialize_ostree_root(state, rootfs).await?;
+        let (sysroot, has_ostree) = initialize_ostree_root(state, rootfs).await?;
 
         install_with_sysroot(
             state,
@@ -1417,12 +1416,12 @@ async fn install_to_filesystem_impl(
             &boot_uuid,
             bound_images,
             has_ostree,
-            &imgstore,
         )
         .await?;
+        let ostree = sysroot.get_ostree()?;
 
         if matches!(cleanup, Cleanup::TriggerOnNextBoot) {
-            let sysroot_dir = crate::utils::sysroot_dir(&sysroot)?;
+            let sysroot_dir = crate::utils::sysroot_dir(ostree)?;
             tracing::debug!("Writing {DESTRUCTIVE_CLEANUP}");
             sysroot_dir.atomic_write(format!("etc/{}", DESTRUCTIVE_CLEANUP), b"")?;
         }

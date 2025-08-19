@@ -304,10 +304,11 @@ async fn handle_layer_progress_print(
 /// Gather all bound images in all deployments, then prune the image store,
 /// using the gathered images as the roots (that will not be GC'd).
 pub(crate) async fn prune_container_store(sysroot: &Storage) -> Result<()> {
-    let deployments = sysroot.deployments();
+    let ostree = sysroot.get_ostree()?;
+    let deployments = ostree.deployments();
     let mut all_bound_images = Vec::new();
     for deployment in deployments {
-        let bound = crate::boundimage::query_bound_images_for_deployment(sysroot, &deployment)?;
+        let bound = crate::boundimage::query_bound_images_for_deployment(ostree, &deployment)?;
         all_bound_images.extend(bound.into_iter());
     }
     // Convert to a hashset of just the image names
@@ -463,11 +464,11 @@ pub(crate) async fn cleanup(sysroot: &Storage) -> Result<()> {
     let bound_prune = prune_container_store(sysroot);
 
     // We create clones (just atomic reference bumps) here to move to the thread.
-    let repo = sysroot.repo();
-    let sysroot = sysroot.sysroot.clone();
+    let ostree = sysroot.get_ostree_cloned()?;
+    let repo = ostree.repo();
     let repo_prune =
         ostree_ext::tokio_util::spawn_blocking_cancellable_flatten(move |cancellable| {
-            let locked_sysroot = &SysrootLock::from_assumed_locked(&sysroot);
+            let locked_sysroot = &SysrootLock::from_assumed_locked(&ostree);
             let cancellable = Some(cancellable);
             let repo = &repo;
             let txn = repo.auto_transaction(cancellable)?;
@@ -488,7 +489,7 @@ pub(crate) async fn cleanup(sysroot: &Storage) -> Result<()> {
 
             // Then, for each deployment which is derived (e.g. has configmaps) we synthesize
             // a base ref to ensure that it's not GC'd.
-            for (i, deployment) in sysroot.deployments().into_iter().enumerate() {
+            for (i, deployment) in ostree.deployments().into_iter().enumerate() {
                 let commit = deployment.csum();
                 if let Some(base) = get_base_commit(repo, &commit)? {
                     repo.transaction_set_refspec(&format!("{BASE_IMAGE_PREFIX}/{i}"), Some(&base));
@@ -543,7 +544,7 @@ async fn deploy(
         None
     };
     // Clone all the things to move to worker thread
-    let sysroot_clone = sysroot.sysroot.clone();
+    let ostree = sysroot.get_ostree_cloned()?;
     // ostree::Deployment is incorrectly !Send 😢 so convert it to an integer
     let merge_deployment = merge_deployment.map(|d| d.index() as usize);
     let stateroot = stateroot.to_string();
@@ -553,7 +554,7 @@ async fn deploy(
     let r = async_task_with_spinner(
         "Deploying",
         spawn_blocking_cancellable_flatten(move |cancellable| -> Result<_> {
-            let sysroot = sysroot_clone;
+            let ostree = ostree;
             let stateroot = Some(stateroot);
             let mut opts = ostree::SysrootDeployTreeOpts::default();
 
@@ -565,11 +566,11 @@ async fn deploy(
             if let Some(kargs) = override_kargs.as_deref() {
                 opts.override_kernel_argv = Some(&kargs);
             }
-            let deployments = sysroot.deployments();
+            let deployments = ostree.deployments();
             let merge_deployment = merge_deployment.map(|m| &deployments[m]);
             let origin = glib::KeyFile::new();
             origin.load_from_data(&origin_data, glib::KeyFileFlags::NONE)?;
-            let d = sysroot.stage_tree_with_options(
+            let d = ostree.stage_tree_with_options(
                 stateroot.as_deref(),
                 &ostree_commit,
                 Some(&origin),
@@ -582,7 +583,8 @@ async fn deploy(
     )
     .await?;
     // SAFETY: We must have a staged deployment
-    let staged = sysroot.staged_deployment().unwrap();
+    let ostree = sysroot.get_ostree()?;
+    let staged = ostree.staged_deployment().unwrap();
     assert_eq!(staged.index(), r);
     Ok(staged)
 }
@@ -608,6 +610,7 @@ pub(crate) async fn stage(
     spec: &RequiredHostSpec<'_>,
     prog: ProgressWriter,
 ) -> Result<()> {
+    let ostree = sysroot.get_ostree()?;
     let mut subtask = SubTaskStep {
         subtask: "merging".into(),
         description: "Merging Image".into(),
@@ -629,7 +632,7 @@ pub(crate) async fn stage(
             .collect(),
     })
     .await;
-    let merge_deployment = sysroot.merge_deployment(Some(stateroot));
+    let merge_deployment = ostree.merge_deployment(Some(stateroot));
 
     subtask.completed = true;
     subtasks.push(subtask.clone());
@@ -740,14 +743,16 @@ pub(crate) async fn stage(
 /// Implementation of rollback functionality
 pub(crate) async fn rollback(sysroot: &Storage) -> Result<()> {
     const ROLLBACK_JOURNAL_ID: &str = "26f3b1eb24464d12aa5e7b544a6b5468";
-    let repo = &sysroot.repo();
-    let (booted_deployment, deployments, host) = crate::status::get_status_require_booted(sysroot)?;
+    let ostree = sysroot.get_ostree()?;
+    let (booted_deployment, deployments, host) = crate::status::get_status_require_booted(ostree)?;
 
     let new_spec = {
         let mut new_spec = host.spec.clone();
         new_spec.boot_order = new_spec.boot_order.swap();
         new_spec
     };
+
+    let repo = &ostree.repo();
 
     // Just to be sure
     host.spec.verify_transition(&new_spec)?;
@@ -788,7 +793,7 @@ pub(crate) async fn rollback(sysroot: &Storage) -> Result<()> {
         .chain(deployments.other)
         .collect::<Vec<_>>();
     tracing::debug!("Writing new deployments: {new_deployments:?}");
-    sysroot.write_deployments(&new_deployments, gio::Cancellable::NONE)?;
+    ostree.write_deployments(&new_deployments, gio::Cancellable::NONE)?;
     if reverting {
         println!("Next boot: current deployment");
     } else {
