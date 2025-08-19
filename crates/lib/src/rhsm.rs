@@ -92,8 +92,8 @@ impl From<crate::spec::HostStatus> for RhsmFacts {
 #[context("Publishing facts")]
 pub(crate) async fn publish_facts(root: &Dir) -> Result<()> {
     let sysroot = super::cli::get_storage().await?;
-    let booted_deployment = sysroot.booted_deployment();
-    let (_deployments, host) = crate::status::get_status(&sysroot, booted_deployment.as_ref())?;
+    let ostree = sysroot.get_ostree()?;
+    let (_, _, host) = crate::status::get_status_require_booted(ostree)?;
 
     let facts = RhsmFacts::from(host.status);
     root.atomic_replace_with(FACTS_PATH, |w| {
