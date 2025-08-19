@@ -4,8 +4,14 @@ SOURCE_DATE_EPOCH ?= $(shell git log -1 --pretty=%ct)
 # https://reproducible-builds.org/docs/archives/
 TAR_REPRODUCIBLE = tar --mtime="@${SOURCE_DATE_EPOCH}" --sort=name --owner=0 --group=0 --numeric-owner --pax-option=exthdr.name=%d/PaxHeaders/%f,delete=atime,delete=ctime
 
+# Enable rhsm if we detect the build environment is RHEL-like.
+# We may in the future also want to include Fedora+derivatives as
+# the code is really tiny.
+# (Note we should also make installation of the units conditional on the rhsm feature)
+CARGO_FEATURES ?= $(shell . /usr/lib/os-release; if echo "$$ID_LIKE" |grep -qF rhel; then echo rhsm; fi)
+
 all:
-	cargo build --release
+	cargo build --release --features "$(CARGO_FEATURES)"
 
 install:
 	install -D -m 0755 -t $(DESTDIR)$(prefix)/bin target/release/bootc
