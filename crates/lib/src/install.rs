@@ -252,6 +252,10 @@ pub(crate) struct InstallConfigOpts {
     /// The stateroot name to use. Defaults to `default`.
     #[clap(long)]
     pub(crate) stateroot: Option<String>,
+
+    /// The bootloader to use
+    #[clap(long)]
+    pub(crate) bootloader: Option<String>,
 }
 
 #[derive(
@@ -1649,6 +1653,7 @@ fn write_bls_boot_entries_to_disk(
     let entries_dir = cap_std::fs::Dir::open_ambient_dir(&path, cap_std::ambient_authority())
         .with_context(|| format!("Opening {path}"))?;
 
+    println!("Writing vmlinuz to {:?}", entries_dir);
     entries_dir
         .atomic_write(
             "vmlinuz",
@@ -1660,6 +1665,7 @@ fn write_bls_boot_entries_to_disk(
         anyhow::bail!("initramfs not found");
     };
 
+    println!("Writing initrd to {:?}", entries_dir);
     entries_dir
         .atomic_write(
             "initrd",
@@ -1691,11 +1697,12 @@ pub(crate) fn setup_composefs_bls_boot(
 ) -> Result<String> {
     let id_hex = id.to_hex();
 
-    let (root_path, cmdline_refs) = match setup_type {
+    // Determine ESP path for writing boot files
+    let (esp_path, cmdline_refs) = match setup_type {
         BootSetupType::Setup((root_setup, state)) => {
-            // root_setup.kargs has [root=UUID=<UUID>, "rw"]
+            // Find ESP partition mount point
+            let esp_mount = root_setup.physical_root_path.join("esp");
             let mut cmdline_options = String::from(root_setup.kargs.join(" "));
-
             match &state.composefs_options {
                 Some(opt) if opt.insecure => {
                     cmdline_options.push_str(&format!(" {COMPOSEFS_CMDLINE}=?{id_hex}"));
@@ -1704,12 +1711,10 @@ pub(crate) fn setup_composefs_bls_boot(
                     cmdline_options.push_str(&format!(" {COMPOSEFS_CMDLINE}={id_hex}"));
                 }
             };
-
-            (root_setup.physical_root_path.clone(), cmdline_options)
+            (esp_mount, cmdline_options)
         }
-
         BootSetupType::Upgrade => (
-            Utf8PathBuf::from("/sysroot"),
+            Utf8PathBuf::from("/sysroot/esp"),
             vec![
                 format!("root=UUID={DPS_UUID}"),
                 RW_KARG.to_string(),
@@ -1719,9 +1724,10 @@ pub(crate) fn setup_composefs_bls_boot(
         ),
     };
 
-    let boot_dir = root_path.join("boot");
+    let boot_dir = esp_path.join("EFI/Linux");
     let is_upgrade = matches!(setup_type, BootSetupType::Upgrade);
 
+    println!("Configuring with {:?}", entry);
     let (bls_config, boot_digest) = match &entry {
         ComposefsBootEntry::Type1(..) => unimplemented!(),
         ComposefsBootEntry::Type2(..) => unimplemented!(),
@@ -1735,14 +1741,14 @@ pub(crate) fn setup_composefs_bls_boot(
             bls_config.title = Some(id_hex.clone());
             bls_config.sort_key = Some("1".into());
             bls_config.machine_id = None;
-            bls_config.linux = format!("/boot/{id_hex}/vmlinuz");
-            bls_config.initrd = vec![format!("/boot/{id_hex}/initrd")];
+            bls_config.linux = format!("/EFI/Linux/{id_hex}/vmlinuz");
+            bls_config.initrd = vec![format!("/EFI/Linux/{id_hex}/initrd")];
             bls_config.options = Some(cmdline_refs);
             bls_config.extra = HashMap::new();
 
             if let Some(symlink_to) = find_vmlinuz_initrd_duplicates(&boot_digest)? {
-                bls_config.linux = format!("/boot/{symlink_to}/vmlinuz");
-                bls_config.initrd = vec![format!("/boot/{symlink_to}/initrd")];
+                bls_config.linux = format!("/EFI/Linux/{symlink_to}/vmlinuz");
+                bls_config.initrd = vec![format!("/EFI/Linux/{symlink_to}/initrd")];
             } else {
                 write_bls_boot_entries_to_disk(&boot_dir, id, usr_lib_modules_vmlinuz, &repo)?;
             }
@@ -1757,19 +1763,22 @@ pub(crate) fn setup_composefs_bls_boot(
 
         // This will be atomically renamed to 'loader/entries' on shutdown/reboot
         (
-            boot_dir.join(format!("loader/{STAGED_BOOT_LOADER_ENTRIES}")),
+            esp_path.join(format!("loader/{STAGED_BOOT_LOADER_ENTRIES}")),
             Some(booted_bls),
         )
     } else {
-        (boot_dir.join(format!("loader/{BOOT_LOADER_ENTRIES}")), None)
+        (esp_path.join(format!("loader/{BOOT_LOADER_ENTRIES}")), None)
     };
 
+    println!("Creating {:?}", entries_path);
     create_dir_all(&entries_path).with_context(|| format!("Creating {:?}", entries_path))?;
 
+    println!("Opening {:?}", entries_path);
     let loader_entries_dir =
         cap_std::fs::Dir::open_ambient_dir(&entries_path, cap_std::ambient_authority())
             .with_context(|| format!("Opening {entries_path}"))?;
 
+    println!("Writing BLS entry for deployment {id_hex}");
     loader_entries_dir.atomic_write(
         // SAFETY: We set sort_key above
         format!(
@@ -1793,8 +1802,11 @@ pub(crate) fn setup_composefs_bls_boot(
     let owned_loader_entries_fd = loader_entries_dir
         .reopen_as_ownedfd()
         .context("Reopening as owned fd")?;
+
+    println!("Syncing BLS entries to disk");
     rustix::fs::fsync(owned_loader_entries_fd).context("fsync")?;
 
+    println!("Wrote BLS entry for deployment {id_hex} to {entries_path}");
     Ok(boot_digest)
 }
 
@@ -2083,21 +2095,28 @@ fn setup_composefs_boot(root_setup: &RootSetup, state: &State, image_id: &str) -
             &state.config_opts,
             None,
         )?;
+        println!("Finished installing bootloader");
     }
 
+    println!("Opening composefs repo");
     let repo = open_composefs_repo(&root_setup.physical_root)?;
 
+    println!("Creating composefs filesystem");
     let mut fs = create_composefs_filesystem(&repo, image_id, None)?;
 
+    println!("Transforming filesystem for boot");
     let entries = fs.transform_for_boot(&repo)?;
-    let id = fs.commit_image(&repo, None)?;
 
+    println!("Committing image");
+    let id = fs.commit_image(&repo, None)?;
     let Some(entry) = entries.into_iter().next() else {
         anyhow::bail!("No boot entries!");
     };
 
     let boot_type = BootType::from(&entry);
     let mut boot_digest: Option<String> = None;
+    // Log the boot type and digest to stdout
+    println!("Boot type: {:?}", boot_type);
 
     match boot_type {
         BootType::Bls => {
@@ -2118,6 +2137,11 @@ fn setup_composefs_boot(root_setup: &RootSetup, state: &State, image_id: &str) -
         )?,
     };
 
+    if let Some(digest) = &boot_digest {
+        println!("Boot digest: {:?}", digest);
+    }
+
+    println!("Writing composefs state");
     write_composefs_state(
         &root_setup.physical_root_path,
         id,

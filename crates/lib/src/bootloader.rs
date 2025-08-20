@@ -28,12 +28,21 @@ pub(crate) fn install_via_bootupd(
     } else {
         vec![]
     };
+
+    // If configopts.bootloader is systemd-boot, pass in the `--bootloader systemd-boot` flag to bootupctl
+    let mut bootloader_args = vec![];
+    if configopts.bootloader == Some("systemd-boot".into()) {
+        bootloader_args.push("--bootloader");
+        bootloader_args.push("systemd-boot");
+    }
+
     let devpath = device.path();
     println!("Installing bootloader via bootupd");
     Command::new("bootupctl")
         .args(["backend", "install", "--write-uuid"])
         .args(verbose)
         .args(bootupd_opts.iter().copied().flatten())
+        .args(bootloader_args)
         .args(src_root_arg)
         .args(["--device", devpath.as_str(), rootfs.as_str()])
         .log_debug()
